@@ -1,11 +1,8 @@
 #############################################################
-# SECURITY CAMERA
-# DESC: The security camera application takes pictures from 
-# a webcam and sends them via email on regular intervals. The 
-# theory of operation is that a server could quietly take pictures
-# unknown to the criminal. If the criminal discovers the camera the
-# images will have already been received by the owner on email
-# and it will be too late to delete them.
+# CAPTURE EMAIL
+# DESC: This application is an extension of the security camera.
+# it is designed to be invoked from a webpage, capture an image
+# and post that image to a webpage while emailing it.
 # Author: Jonathan L Clark
 # Date: 7/19/2018
 #############################################################
@@ -89,23 +86,20 @@ if __name__ == "__main__":
     to_addr = "jonathan84clark@gmail.com"
     appDir = os.path.dirname(os.path.realpath(__file__))
     appDir += "/Pictures/"
-    while (True):
-        t = datetime.datetime.now()
-        dateTimeStr = t.strftime("%d_%m_%y_%H_%M_%S")
-        imageFile = appDir + "img_" + dateTimeStr + ".jpeg"
-        print(imageFile)
-        if os.path.exists(appDir) == False:
-           os.mkdir(appDir)
-        capture_picture(imageFile)
-        time.sleep(15)
-        if os.path.exists(imageFile):
-           write_log("MAIN", "INFO", "Sending email to: " + to_addr)
-           attachments = []
-           attachments.append(imageFile)
-           subject = "Security image: " + dateTimeStr
-           body = "Security image: " + dateTimeStr
-           send_email(from_addr, "NICE TRY", to_addr, from_addr, subject, body, attachments)
-        time.sleep(600) # Capture a picture every ten minutes then email it to the security address
+    t = datetime.datetime.now()
+    dateTimeStr = t.strftime("%d_%m_%y_%H_%M_%S")
+    imageFile = appDir + "img_one_shot.jpg"
+    if os.path.exists(appDir) == False:
+        os.mkdir(appDir)
+    capture_picture(imageFile)
+    time.sleep(15)
+    if os.path.exists(imageFile):
+        write_log("MAIN", "INFO", "Sending email to: " + to_addr)
+        attachments = []
+        attachments.append(imageFile)
+        subject = "Security image: " + dateTimeStr
+        body = "Security image: " + dateTimeStr
+        send_email(from_addr, "NICE TRY", to_addr, from_addr, subject, body, attachments)
 		    
 	    
 	
