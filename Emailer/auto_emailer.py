@@ -1,10 +1,12 @@
 #############################################################
-# CAPTURE EMAIL
-# DESC: This application is an extension of the security camera.
-# it is designed to be invoked from a webpage, capture an image
-# and post that image to a webpage while emailing it.
+# AUTO EMAILER
+# DESC: The auto emailer is a application that sends an email
+# periodically for a certain number of days or months. It is 
+# designed as a deterant to spammers. If someone continues
+# to send spam emails after an unsubscibe request is sent
+# this tool can be used to spam the spammers until they stop
 # Author: Jonathan L Clark
-# Date: 7/19/2018
+# Date: 7/20/2018
 #############################################################
 import sys
 import time
@@ -67,39 +69,19 @@ def send_email(smtp_address, smtp_password, toaddr, fromaddr, subject, body, att
    except:
       write_log("EMAIL", "ERROR", "Unable to send email.")
 
-# Captures an image from the onboard webcamera
-def capture_picture(imagePath):
-   try:
-     streamerCmd = 'sudo streamer -f jpeg -o ' + imagePath
-     os.system(streamerCmd)
-	   # If using open CV to capture the image on Windows
-       #cap = cv2.VideoCapture(0)
-       #ret, frame = cap.read()
-       #rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
-       #out = cv2.imwrite(imagePath, frame)
-       #cap.release()
-   except:
-       write_log("CAMERA", "ERROR", "Unable to capture picture.")
-
 if __name__ == "__main__":
+    #Configure the script here
     from_addr = "jonathan84clark@gmail.com"
     to_addr = "jonathan84clark@gmail.com"
-    appDir = os.path.dirname(os.path.realpath(__file__))
-    appDir += "/Pictures/"
-    t = datetime.datetime.now()
-    dateTimeStr = t.strftime("%d_%m_%y_%H_%M_%S")
-    imageFile = appDir + "img_" + dateTimeStr + ".jpeg"
-    if os.path.exists(appDir) == False:
-        os.mkdir(appDir)
-    capture_picture(imageFile)
-    print("Test1")
-    time.sleep(15)
-    if os.path.exists(imageFile):
-        write_log("MAIN", "INFO", "Sending email to: " + to_addr)
-        attachments = []
-        attachments.append(imageFile)
-        subject = "Security image: " + dateTimeStr
-        body = "Security image: " + dateTimeStr
-        send_email(from_addr, "NICE_TRY", to_addr, from_addr, subject, body, attachments)
-        print("Image: " + imageFile)
-        
+    body = "Please unsubscribe me"
+    subject = "Please unsubscribe me"
+    rate = 5 # Currently set to run every minute
+    emailsToSend = 10
+    for i in range(0, emailsToSend):
+        attachments = [] # For now we will have no attachments this may change later
+        send_email(from_addr, "NICE TRY", to_addr, from_addr, subject, body, attachments)
+        time.sleep(rate) # Capture a picture every ten minutes then email it to the security address
+		    
+	    
+	
+    
