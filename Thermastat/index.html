@@ -15,7 +15,7 @@ body {font-family: "Lato", sans-serif}
 <!-- Navbar -->
 <div class="w3-top">
   <div class="w3-bar w3-black w3-card">
-    <a href="index.html" class="w3-bar-item w3-button w3-padding-large">HOME</a>
+      <a href="index.html" class="w3-bar-item w3-button w3-padding-large">" "</a>
   </div>
 </div>
 
@@ -28,7 +28,18 @@ body {font-family: "Lato", sans-serif}
   <div class="w3-container w3-content w3-center w3-padding-64" style="max-width:800px" id="band">
     <h2 class="w3-wide">Thermostat</h2>
 	<input id="set_temp" type="number" name="quantity" min="40" max="90">
-    <button>Set</button>
+    <button id="set_btn">Set</button><br><br>
+    <button id="ac_btn">AC</button>&nbsp&nbsp
+    <button id="fan_btn">Fan</button>&nbsp&nbsp
+    <button id="heat_btn">Heat</button><br><br>
+    <input id="temperature" readonly>&nbsp&nbsp<br>
+    <input id="humidity" readonly>&nbsp&nbsp<br>
+    <input id="externTemp" readonly>&nbsp&nbsp<br>
+    <input id="externHumid" readonly>&nbsp&nbsp<br>
+    <input id="externWind" readonly>&nbsp&nbsp<br>
+    <input id="acStatus" readonly>&nbsp&nbsp<br>
+    <input id="fanStatus" readonly>&nbsp&nbsp<br>
+    <input id="heatStatus" readonly>&nbsp&nbsp<br>
 
 <!-- End Page Content -->
 </div>
@@ -55,16 +66,60 @@ function pullData() {
    //alert("test")
    $.getJSON("data.js", function(result){
         $('#set_temp').val(result.target)
+        $('#temperature').val("Temperature: " + result.temperature.toString())
+        $('#humidity').val("Humidity: " + result.humidity.toString())
+        $('#externTemp').val("Outside Temp: " + result.weatherTemp.toString())
+        $('#externHumid').val("Outside Humid: " + result.weatherHumid.toString())
+        $('#externWind').val("Wind Speed: " + result.windSpd.toString())
+        $('#acStatus').val("AC Status: " + result.acStatus.toString())
+        $('#fanStatus').val("Fan Status: " + result.fanStatus.toString())
+        $('#heatStatus').val("Heat Status: " + result.heaterStatus.toString())
         //alert(result.target)
     });
 }
 
 $(document).ready(function(){
-    $("button").click(function(){
+    $("#set_btn").click(function(){
 	    var targetTemp = $('#set_temp').val()
         $.post("demo_test_post.asp",
         {
           target: targetTemp
+        },
+        function(data,status){
+            //alert("Data: " + data + "\nStatus: " + status);
+        });
+    });
+});
+
+$(document).ready(function(){
+    $("#ac_btn").click(function(){
+        $.post("demo_test_post.asp",
+        {
+          ac: "toggle"
+        },
+        function(data,status){
+            //alert("Data: " + data + "\nStatus: " + status);
+        });
+    });
+});
+
+$(document).ready(function(){
+    $("#fan_btn").click(function(){
+        $.post("demo_test_post.asp",
+        {
+          fan: "toggle"
+        },
+        function(data,status){
+            //alert("Data: " + data + "\nStatus: " + status);
+        });
+    });
+});
+
+$(document).ready(function(){
+    $("#heat_btn").click(function(){
+        $.post("demo_test_post.asp",
+        {
+          heat: "toggle"
         },
         function(data,status){
             //alert("Data: " + data + "\nStatus: " + status);

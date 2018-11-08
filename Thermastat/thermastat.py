@@ -45,7 +45,7 @@ class S(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-type', "text/json")
             self.end_headers()
-            self.wfile.write('{"target":78, "temperature":84, "humidity":32, "weatherTemp":32, "weatherHumid":43}')
+            self.wfile.write('{"target":78, "temperature":84, "humidity":32, "weatherTemp":32, "weatherHumid":43, "windSpd":15, "acStatus":"On", "fanStatus":"Off", "heaterStatus":"Off"}')
         elif (os.path.isfile(file_path) and file_extension in supported_files):
             f = open(file_path, 'rb')
             self.send_response(200)
