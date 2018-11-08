@@ -29,14 +29,17 @@ body {font-family: "Lato", sans-serif}
     <h2 class="w3-wide">Thermostat</h2>
 	<input id="set_temp" type="number" name="quantity" min="40" max="90">
     <button id="set_btn">Set</button><br><br>
+    <button id="off_btn">Off</button>&nbsp&nbsp
     <button id="ac_btn">AC</button>&nbsp&nbsp
     <button id="fan_btn">Fan</button>&nbsp&nbsp
-    <button id="heat_btn">Heat</button><br><br>
+    <button id="heat_btn">Heat</button>&nbsp&nbsp
+    <button id="auto_btn">Auto</button><br><br>
     <input id="temperature" readonly>&nbsp&nbsp<br>
     <input id="humidity" readonly>&nbsp&nbsp<br>
     <input id="externTemp" readonly>&nbsp&nbsp<br>
     <input id="externHumid" readonly>&nbsp&nbsp<br>
     <input id="externWind" readonly>&nbsp&nbsp<br>
+    <input id="autoStatus" readonly>&nbsp&nbsp<br>
     <input id="acStatus" readonly>&nbsp&nbsp<br>
     <input id="fanStatus" readonly>&nbsp&nbsp<br>
     <input id="heatStatus" readonly>&nbsp&nbsp<br>
@@ -71,6 +74,7 @@ function pullData() {
         $('#externTemp').val("Outside Temp: " + result.weatherTemp.toString())
         $('#externHumid').val("Outside Humid: " + result.weatherHumid.toString())
         $('#externWind').val("Wind Speed: " + result.windSpd.toString())
+        $('#autoStatus').val("Auto Status: " + result.autoStatus.toString())
         $('#acStatus').val("AC Status: " + result.acStatus.toString())
         $('#fanStatus').val("Fan Status: " + result.fanStatus.toString())
         $('#heatStatus').val("Heat Status: " + result.heaterStatus.toString())
@@ -84,6 +88,18 @@ $(document).ready(function(){
         $.post("demo_test_post.asp",
         {
           target: targetTemp
+        },
+        function(data,status){
+            //alert("Data: " + data + "\nStatus: " + status);
+        });
+    });
+});
+
+$(document).ready(function(){
+    $("#off_btn").click(function(){
+        $.post("demo_test_post.asp",
+        {
+          off: "toggle"
         },
         function(data,status){
             //alert("Data: " + data + "\nStatus: " + status);
@@ -126,6 +142,19 @@ $(document).ready(function(){
         });
     });
 });
+
+$(document).ready(function(){
+    $("#auto_btn").click(function(){
+        $.post("demo_test_post.asp",
+        {
+          auto: "toggle"
+        },
+        function(data,status){
+            //alert("Data: " + data + "\nStatus: " + status);
+        });
+    });
+});
+
 </script>
 
 </body>
