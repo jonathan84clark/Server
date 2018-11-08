@@ -41,7 +41,12 @@ class S(BaseHTTPRequestHandler):
         file_path = curdir + sep + self.path
         filename, file_extension = os.path.splitext(file_path)
         print(file_extension)
-        if (os.path.isfile(file_path) and file_extension in supported_files):
+        if (self.path == "/data.js"):
+            self.send_response(200)
+            self.send_header('Content-type', "text/json")
+            self.end_headers()
+            self.wfile.write('{"target":78, "temperature":84, "humidity":32, "weatherTemp":32, "weatherHumid":43}')
+        elif (os.path.isfile(file_path) and file_extension in supported_files):
             f = open(file_path, 'rb')
             self.send_response(200)
             self.send_header('Content-type', supported_files[file_extension])
@@ -56,12 +61,13 @@ class S(BaseHTTPRequestHandler):
         
     def do_POST(self):
         # Doesn't do anything with posted data
-        output = ""
+        output = "Submitted"
         content_length = int(self.headers['Content-Length']) # <--- Gets the size of data
         post_data = self.rfile.read(content_length) # <--- Gets the data itself
         post_list = post_data.split("&") # Extract the individual post commands
         for post_str in post_list:
             key_value = post_str.split("=")
+            print(post_str)
             # TODO: split up the post strings of the format what=param&what2=param2
             # then send the proper commands to the thermostat thread
             

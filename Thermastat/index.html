@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<title>Clark Thermostat</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style/style.css">
+<link rel="stylesheet" href="style/fonts.css">
+<link rel="stylesheet" href="style/font_awesome.css">
+<style>
+body {font-family: "Lato", sans-serif}
+.mySlides {display: none}
+</style>
+<body onload="pullData();">
+
+<!-- Navbar -->
+<div class="w3-top">
+  <div class="w3-bar w3-black w3-card">
+    <a href="index.html" class="w3-bar-item w3-button w3-padding-large">HOME</a>
+  </div>
+</div>
+
+
+
+<!-- Page content -->
+<div class="w3-content" style="max-width:2000px;margin-top:46px">
+
+  <!-- The Band Section -->
+  <div class="w3-container w3-content w3-center w3-padding-64" style="max-width:800px" id="band">
+    <h2 class="w3-wide">Thermostat</h2>
+	<input id="set_temp" type="number" name="quantity" min="40" max="90">
+    <button>Set</button>
+
+<!-- End Page Content -->
+</div>
+<!--
+To use this code on your website, get a free API key from Google.
+Read more at: https://www.w3schools.com/graphics/google_maps_basic.asp
+-->
+
+<!-- Footer -->
+<footer class="w3-container w3-padding-64 w3-center w3-opacity w3-light-grey w3-xlarge">
+  <i class="fa fa-facebook-official w3-hover-opacity"></i>
+  <i class="fa fa-instagram w3-hover-opacity"></i>
+  <i class="fa fa-snapchat w3-hover-opacity"></i>
+  <i class="fa fa-pinterest-p w3-hover-opacity"></i>
+  <i class="fa fa-twitter w3-hover-opacity"></i>
+  <i class="fa fa-linkedin w3-hover-opacity"></i>
+  <p class="w3-medium">Powered by <a href="https://www.w3schools.com/w3css/default.asp" target="_blank">w3.css</a></p>
+</footer>
+<script
+src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js">
+</script>
+<script>
+function pullData() {
+   //alert("test")
+   $.getJSON("data.js", function(result){
+        $('#set_temp').val(result.target)
+        //alert(result.target)
+    });
+}
+
+$(document).ready(function(){
+    $("button").click(function(){
+	    var targetTemp = $('#set_temp').val()
+        $.post("demo_test_post.asp",
+        {
+          target: targetTemp
+        },
+        function(data,status){
+            //alert("Data: " + data + "\nStatus: " + status);
+        });
+    });
+});
+</script>
+
+</body>
+</html>
