@@ -6,8 +6,12 @@
 # Modifier: Jonathan L Clark
 # Date: 11/3/2018. Started fleshing out basic thermostat operating
 # code.
+# Update: 11/8/2018, Added the statistics measurement system as well
+# as the other needed threads and sub systems. Validated that all systems
+# are working.
 ##################################################################
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
+from weather import Weather, Unit
 import SocketServer
 import os
 from os import curdir, sep
@@ -15,6 +19,7 @@ import time
 from sys import argv
 from threading import Thread
 from time import sleep
+import datetime
 
 target_temp = 69
 system_enabled = True
@@ -23,6 +28,14 @@ heat_on = False
 fan_on = False
 variance = 1
 auto_mode = True
+
+# Current statistics
+insideTemp = 60
+insideHumid = 20
+outsideTemp = 70
+outsideHumid = 30
+outsideWindSpd = 20
+outsideWindDir = 270
 
 supported_files = {".html" : 'text/html', ".css" : 'text/css', "jpeg" : 'image/jpeg',
                    ".js" : 'text/javascript'}
@@ -51,8 +64,8 @@ class S(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-type', "text/json")
             self.end_headers()
-            jsonString = '{"target":78, "temperature":84, "humidity":32, '
-            jsonString += '"weatherTemp":32, "weatherHumid":43, "windSpd":15, '
+            jsonString = '{"target":' + str(target_temp) + ', "temperature":' + str(insideTemp) + ', "humidity":' + str(insideHumid) + ', '
+            jsonString += '"weatherTemp":' + str(outsideTemp) + ', "weatherHumid":' + str(outsideHumid) + ', "windSpd":' + str(outsideWindDir) + ', '
             jsonString += '"acStatus":"' + self.statusToString(ac_on) + '", "fanStatus":"' + self.statusToString(fan_on) + '", '
             jsonString += '"heaterStatus":"' + self.statusToString(heat_on) + '", "autoStatus":"' + self.statusToString(auto_mode) + '"}'
             self.wfile.write(jsonString)
@@ -74,43 +87,47 @@ class S(BaseHTTPRequestHandler):
         pass
     # Turns the AC on or off
     def toggle_ac(self):
+        global ac_on
         self.clear_system()
         if (ac_on == True):
             ac_on = False
-            print("AC Off")
+            write_log("SERVER", 4, "AC turned off")
         else:
             ac_on = True
-            print("AC On")
+            write_log("SERVER", 4, "AC turned on")
     
     # Turns the fan on or off
     def toggle_fan(self):
+        global fan_on
         self.clear_system()
         if (fan_on == True):
             fan_on = False
-            print("Fan Off")
+            write_log("SERVER", 4, "Fan turned off")
         else:
             fan_on = True
-            print("Fan On")
+            write_log("SERVER", 4, "Fan turned on")
 
     # Turns the heat on or off
     def toggle_heat(self):
+        global heat_on
         self.clear_system()
         if (heat_on == True):
             heat_on = False
-            print("Heat Off")
+            write_log("SERVER", 4, "Heater turned off")
         else:
             heat_on = True
-            print("Heat On")
+            write_log("SERVER", 4, "Heater turned on")
 
     # Turns the heat on or off
     def toggle_auto(self):
+        global auto_mode
         self.clear_system()
         if (auto_mode == True):
             auto_mode = False
-            print("Auto Off")
+            write_log("SERVER", 4, "Auto mode off")
         else:
             auto_mode = True
-            print("Auto On")
+            write_log("SERVER", 4, "Auto mode on")
 
     # Turns the heat on or off
     def toggle_off(self):
@@ -139,11 +156,11 @@ class S(BaseHTTPRequestHandler):
                 elif (key_value[0] == "auto"):
                     self.toggle_auto()
                 elif (key_value[0] == "target"):
-                    print("Target temp set to: " + key_value[1])
+                    write_log("SERVER", 2, "Target temp set to: " + str(key_value[1]))
                 else:
-                    print("ERROR: Invalid command: " + post_str)
+                    write_log("SERVER", 1, "ERROR: Invalid command: " + post_str)
             else:
-                print("ERROR: Invalid command format: " + post_str)
+                write_log("SERVER", 1, "ERROR: Invalid command format: " + post_str)
             
         self._set_headers()
         self.wfile.write("<html><body><h1>" + output + "</h1></body></html>")
@@ -156,6 +173,12 @@ def runServer(server_class=HTTPServer, handler_class=S, port=80):
     global fan_on
     global variance
     global auto_mode
+    global outsideTemp
+    global outsideHumid
+    global outsideWindSpd
+    global outsideWindDir
+    global insideTemp
+    global insideHumid
 
     server_address = ('', port)
     httpd = server_class(server_address, handler_class)
@@ -163,17 +186,96 @@ def runServer(server_class=HTTPServer, handler_class=S, port=80):
     httpd.serve_forever()
 
 def getTemperature():
+    # TODO: Pull temperature data from actual temperature sensor
     return 49
 
+# Write to the system log file
+def write_log(module, level, message):
+    appDir = os.path.dirname(os.path.realpath(__file__))
+    appDir += "/Logs/"
+    if os.path.exists(appDir) == False:
+       os.mkdir(appDir)
+    t = datetime.datetime.now()
+    logName = appDir + t.strftime("Log_" + "%d_%m_%y_.csv")
+    dateString = t.strftime("%d/%m/%y")
+    timeString = t.strftime("%H:%M:%S")
+    csvString = dateString + "," + timeString + "," + module + "," + str(level) + "," + message + "\n"
+    if os.path.exists(logName):
+        file = open(logName, "a")
+    else:
+        file = open(logName, "w")
+        file.write("Date,Time,Module,Level,Message\n")
+    file.write(csvString)
+    file.close()
+    print("[" + module + "] " + str(level) + ": " + message)
+
+# Write to the system log file
+def log_climate_stats():
+    global target_temp
+    global system_enabled
+    global ac_on
+    global heat_on
+    global fan_on
+    global variance
+    global auto_mode
+    global outsideTemp
+    global outsideHumid
+    global outsideWindSpd
+    global outsideWindDir
+    global insideTemp
+    global insideHumid
+    appDir = os.path.dirname(os.path.realpath(__file__))
+    appDir += "/Logs/"
+    if os.path.exists(appDir) == False:
+       os.mkdir(appDir)
+    t = datetime.datetime.now()
+    logName = appDir + t.strftime("Log_Stats" + "%d_%m_%y_.csv")
+    dateString = t.strftime("%d/%m/%y")
+    timeString = t.strftime("%H:%M:%S")
+    csvString = dateString + "," + timeString + "," + str(outsideTemp) + "," + str(insideTemp) + "," + str(outsideWindSpd) + ","
+    csvString += str(outsideWindDir) + "," + str(outsideHumid) + "," + str(insideHumid) + "\n"
+    if os.path.exists(logName):
+        file = open(logName, "a")
+    else:
+        file = open(logName, "w")
+        file.write("Date,Time,Outside Temp,Inside Temp,Outside Wind Speed,Outside Wind Direction, Outside Humidity, Inside Humidity\n")
+    file.write(csvString)
+    file.close()
+
+# Gets the current external temperature and climate info from yahoo
 def getClimateState():
-    # TODO: Pull real world temperature data
-    # If real world data is not available, extrapolate the temperature state from the month in the year
-    outside_temp = 49
-    if (outside_temp < 60): # Colder temperatures are below 60 degrees
+    global target_temp
+    global system_enabled
+    global ac_on
+    global heat_on
+    global fan_on
+    global variance
+    global auto_mode
+    global outsideTemp
+    global outsideHumid
+    global outsideWindSpd
+    global outsideWindDir
+    global insideTemp
+    global insideHumid
+    try:
+        write_log("THERMOSTAT", 4, "Pulling real-world weather")
+        weather = Weather(Unit.FAHRENHEIT)
+        location = weather.lookup_by_location('spokane')
+        condition = location.condition
+    
+        outsideTemp = condition.temp
+        outsideHumid = location.atmosphere.humidity
+        outsideWindSpd = location.wind.speed
+        outsideWindDir = location.wind.direction
+    except:
+        write_log("THERMOSTAT", 1, "EXCEPTION: Unable to pull real-world weather")
+
+    if (outsideTemp < 60): # Colder temperatures are below 60 degrees
         return "cold"
     else:
         return "warm"
 
+# Runs the automatic thermostat thread
 def runThermostat():
     global target_temp
     global system_enabled
@@ -182,6 +284,13 @@ def runThermostat():
     global fan_on
     global variance
     global auto_mode
+    global outsideTemp
+    global outsideHumid
+    global outsideWindSpd
+    global outsideWindDir
+    global insideTemp
+    global insideHumid
+
     
     while (True):
         curClimate = getClimateState()
@@ -192,31 +301,57 @@ def runThermostat():
             if (curClimate == "cold"):
                 if (cur_temp < (target_temp - variance) and heat_on == False):
                     heat_on = True
-                    print("Turning on heater")
+                    write_log("THERMOSTAT", 4, "Turning on heater")
                     # TODO: Turn on the heater
                 elif (cur_temp == (target_temp + variance) and heat_on == False):
                     heat_off = False
-                    print("Turning the heater off")
+                    write_log("THERMOSTAT", 4, "Turning off heater")
                     # TODO: Turn the heater off
             else:
                 if (cur_temp > (target_temp + variance) and ac_on == False):
                     ac_on = True
-                    print("Turning on ac")
+                    write_log("THERMOSTAT", 4, "Turning on ac")
                     # TODO: Turn on the AC
                 elif (cur_temp == (target_temp - variance) and ac_on == True):
                     ac_on = False
-                    print("Turning off the ac")
+                    write_log("THERMOSTAT", 4, "Turning off ac")
         sleep(15) # We are in no hurry, only check data every 15 seconds
-                
+     
+# Run Stats logger; the stats logger tracks the temperature, humidity and other stats over time           
+def runStatsLogger():
+    global target_temp
+    global system_enabled
+    global ac_on
+    global heat_on
+    global fan_on
+    global variance
+    global auto_mode
+    global outsideTemp
+    global outsideHumid
+    global outsideWindSpd
+    global outsideWindDir
+    global insideTemp
+    global insideHumid
 
+    while (True):
+        log_climate_stats()
+        sleep(21600) # Log data every 6 hours
+        
 
 if __name__ == "__main__":
+    write_log("MAIN", 1, "System Started")
+
 	# Start up the server thread
     thread = Thread(target = runServer)
     thread.start()
-
+    
+    # Start the thermostat thread
     thermostatThread = Thread(target = runThermostat)
     thermostatThread.start()
+    
+    # Start the statistics monitoring system
+    statsThread = Thread(target = runStatsLogger)
+    statsThread.start()
     print("All threads started")
     while (True):
         pass
