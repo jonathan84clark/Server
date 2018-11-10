@@ -298,10 +298,14 @@ def getClimateState():
     except:
         write_log("THERMOSTAT", 1, "EXCEPTION: Unable to pull real-world weather")
 
-    if (outsideTemp < 60): # Colder temperatures are below 60 degrees
-        return "cold"
+    print(str(outsideTemp))
+    if (int(outsideTemp) < 60.0): # Colder temperatures are below 60 degrees
+        print("Weather Cold")
+        return 1
     else:
-        return "warm"
+
+        print("Weather warm")
+        return 0
 
 # Runs the automatic thermostat thread
 def runThermostat():
@@ -326,12 +330,15 @@ def runThermostat():
         # Temperature is out of range, now lets turn things on
         # In cold temps ONLY use the heat, climate will be pulled from special RTC function
         if (auto_mode == True): # We only execute the thermostat code if we are in auto-mode
-            if (curClimate == "cold"):
+            print("Auto Mode")
+            if (curClimate == 1):
+                print("Climate Cold: " + str(cur_temp))
+                print("Target temp: " + str(target_temp))
                 if (cur_temp < (target_temp - variance) and heat_on == False):
                     heat_on = True
                     write_log("THERMOSTAT", 4, "Turning on heater")
                     GPIO.output(27, GPIO.HIGH)
-                elif (cur_temp == (target_temp + variance) and heat_on == False):
+                elif (cur_temp == (target_temp + variance) and heat_on == True):
                     heat_off = False
                     write_log("THERMOSTAT", 4, "Turning off heater")
                     GPIO.output(27, GPIO.LOW)
