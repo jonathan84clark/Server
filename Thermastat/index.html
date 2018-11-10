@@ -35,7 +35,6 @@ body {font-family: "Lato", sans-serif}
     <button id="heat_btn">Heat</button>&nbsp&nbsp
     <button id="auto_btn">Auto</button><br><br>
     <input id="temperature" readonly>&nbsp&nbsp<br>
-    <input id="humidity" readonly>&nbsp&nbsp<br>
     <input id="externTemp" readonly>&nbsp&nbsp<br>
     <input id="externHumid" readonly>&nbsp&nbsp<br>
     <input id="externWind" readonly>&nbsp&nbsp<br>
@@ -70,7 +69,6 @@ function pullData() {
    $.getJSON("data.js", function(result){
         $('#set_temp').val(result.target)
         $('#temperature').val("Temperature: " + result.temperature.toString())
-        $('#humidity').val("Humidity: " + result.humidity.toString())
         $('#externTemp').val("Outside Temp: " + result.weatherTemp.toString())
         $('#externHumid').val("Outside Humid: " + result.weatherHumid.toString())
         $('#externWind').val("Wind Speed: " + result.windSpd.toString())

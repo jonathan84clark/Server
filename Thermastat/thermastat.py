@@ -20,7 +20,21 @@ from sys import argv
 from threading import Thread
 from time import sleep
 import datetime
+import Adafruit_BMP.BMP280 as BMP280
+import RPi.GPIO as GPIO
 
+# Setup the GPIO pins
+GPIO.setmode(GPIO.BCM) # Broadcom pin-numbering scheme
+GPIO.setup(27, GPIO.OUT) # Heater Pin
+GPIO.setup(22, GPIO.OUT) # Fan Pin
+GPIO.setup(23, GPIO.OUT) # AC Pin
+
+# Clear all relays
+GPIO.output(27, GPIO.LOW)
+GPIO.output(22, GPIO.LOW)
+GPIO.output(23, GPIO.LOW)
+
+sensor = BMP280.BMP280()
 target_temp = 69
 system_enabled = True
 ac_on = False
@@ -83,17 +97,23 @@ class S(BaseHTTPRequestHandler):
         self._set_headers()
     
     def clear_system(self):
-        # TODO: Clear all relay states
-        pass
+        global auto_mode
+        auto_mode = False
+        GPIO.output(27, GPIO.LOW)
+        GPIO.output(22, GPIO.LOW)
+        GPIO.output(23, GPIO.LOW)
+
     # Turns the AC on or off
     def toggle_ac(self):
         global ac_on
         self.clear_system()
         if (ac_on == True):
             ac_on = False
+            GPIO.output(23, GPIO.LOW)
             write_log("SERVER", 4, "AC turned off")
         else:
             ac_on = True
+            GPIO.output(23, GPIO.HIGH)
             write_log("SERVER", 4, "AC turned on")
     
     # Turns the fan on or off
@@ -102,9 +122,11 @@ class S(BaseHTTPRequestHandler):
         self.clear_system()
         if (fan_on == True):
             fan_on = False
+            GPIO.output(22, GPIO.LOW)
             write_log("SERVER", 4, "Fan turned off")
         else:
             fan_on = True
+            GPIO.output(22, GPIO.HIGH)
             write_log("SERVER", 4, "Fan turned on")
 
     # Turns the heat on or off
@@ -113,9 +135,11 @@ class S(BaseHTTPRequestHandler):
         self.clear_system()
         if (heat_on == True):
             heat_on = False
+            GPIO.output(27, GPIO.LOW)
             write_log("SERVER", 4, "Heater turned off")
         else:
             heat_on = True
+            GPIO.output(27, GPIO.HIGH)
             write_log("SERVER", 4, "Heater turned on")
 
     # Turns the heat on or off
@@ -133,7 +157,6 @@ class S(BaseHTTPRequestHandler):
     def toggle_off(self):
         self.clear_system()
         auto_mode = False
-        # TODO: Turns everything off
         pass
 
     def do_POST(self):
@@ -165,7 +188,7 @@ class S(BaseHTTPRequestHandler):
         self._set_headers()
         self.wfile.write("<html><body><h1>" + output + "</h1></body></html>")
 
-def runServer(server_class=HTTPServer, handler_class=S, port=80):
+def runServer(server_class=HTTPServer, handler_class=S, port=5000):
     global target_temp
     global system_enabled
     global ac_on
@@ -186,8 +209,13 @@ def runServer(server_class=HTTPServer, handler_class=S, port=80):
     httpd.serve_forever()
 
 def getTemperature():
-    # TODO: Pull temperature data from actual temperature sensor
-    return 49
+    global sensor
+    global insideTemp
+
+    tempC = sensor.read_temperature()
+    insideTemp = (tempC * 9.0 / 5.0) + 32.0
+
+    return insideTemp
 
 # Write to the system log file
 def write_log(module, level, message):
@@ -290,7 +318,7 @@ def runThermostat():
     global outsideWindDir
     global insideTemp
     global insideHumid
-
+    global sensor
     
     while (True):
         curClimate = getClimateState()
@@ -302,19 +330,20 @@ def runThermostat():
                 if (cur_temp < (target_temp - variance) and heat_on == False):
                     heat_on = True
                     write_log("THERMOSTAT", 4, "Turning on heater")
-                    # TODO: Turn on the heater
+                    GPIO.output(27, GPIO.HIGH)
                 elif (cur_temp == (target_temp + variance) and heat_on == False):
                     heat_off = False
                     write_log("THERMOSTAT", 4, "Turning off heater")
-                    # TODO: Turn the heater off
+                    GPIO.output(27, GPIO.LOW)
             else:
                 if (cur_temp > (target_temp + variance) and ac_on == False):
                     ac_on = True
                     write_log("THERMOSTAT", 4, "Turning on ac")
-                    # TODO: Turn on the AC
+                    GPIO.output(23, GPIO.HIGH)
                 elif (cur_temp == (target_temp - variance) and ac_on == True):
                     ac_on = False
                     write_log("THERMOSTAT", 4, "Turning off ac")
+                    GPIO.output(23, GPIO.LOW)
         sleep(15) # We are in no hurry, only check data every 15 seconds
      
 # Run Stats logger; the stats logger tracks the temperature, humidity and other stats over time           
@@ -332,6 +361,7 @@ def runStatsLogger():
     global outsideWindDir
     global insideTemp
     global insideHumid
+    global sensor
 
     while (True):
         log_climate_stats()
