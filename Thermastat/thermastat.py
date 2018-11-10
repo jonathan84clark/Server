@@ -167,6 +167,7 @@ class S(BaseHTTPRequestHandler):
         pass
 
     def do_POST(self):
+        global target_temp
         # Doesn't do anything with posted data
         output = "Submitted"
         content_length = int(self.headers['Content-Length']) # <--- Gets the size of data
@@ -186,6 +187,7 @@ class S(BaseHTTPRequestHandler):
                 elif (key_value[0] == "auto"):
                     self.toggle_auto()
                 elif (key_value[0] == "target"):
+                    target_temp = float(key_value[1])
                     write_log("SERVER", 2, "Target temp set to: " + str(key_value[1]))
                 else:
                     write_log("SERVER", 1, "ERROR: Invalid command: " + post_str)
@@ -305,13 +307,9 @@ def getClimateState():
     except:
         write_log("THERMOSTAT", 1, "EXCEPTION: Unable to pull real-world weather")
 
-    print(str(outsideTemp))
     if (int(outsideTemp) < 60.0): # Colder temperatures are below 60 degrees
-        print("Weather Cold")
         return 1
     else:
-
-        print("Weather warm")
         return 0
 
 # Runs the automatic thermostat thread
@@ -334,13 +332,11 @@ def runThermostat():
     while (True):
         curClimate = getClimateState()
         cur_temp = getTemperature()
+        print("Target TEMP: " + str(target_temp))
         # Temperature is out of range, now lets turn things on
         # In cold temps ONLY use the heat, climate will be pulled from special RTC function
         if (auto_mode == True): # We only execute the thermostat code if we are in auto-mode
-            print("Auto Mode")
             if (curClimate == 1):
-                print("Climate Cold: " + str(cur_temp))
-                print("Target temp: " + str(target_temp))
                 if (cur_temp < (target_temp - variance) and heat_on == False):
                     heat_on = True
                     write_log("THERMOSTAT", 4, "Turning on heater")
