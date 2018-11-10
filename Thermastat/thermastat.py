@@ -9,6 +9,11 @@
 # Update: 11/8/2018, Added the statistics measurement system as well
 # as the other needed threads and sub systems. Validated that all systems
 # are working.
+# Update: 11/10/2018, The relay board uses LOW values to enable relays.
+# On boot the GPIO pins are low which would turn on all relays. So 
+# what we will do is have the 4th realy switch the power. The power will
+# only be applied if that relay is in the off position (high). This will
+# allow us to control when the system is working.
 ##################################################################
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from weather import Weather, Unit
@@ -28,11 +33,13 @@ GPIO.setmode(GPIO.BCM) # Broadcom pin-numbering scheme
 GPIO.setup(27, GPIO.OUT) # Heater Pin
 GPIO.setup(22, GPIO.OUT) # Fan Pin
 GPIO.setup(23, GPIO.OUT) # AC Pin
+GPIO.setup(24, GPIO.OUT) # Main power line
 
 # Clear all relays
-GPIO.output(27, GPIO.LOW)
-GPIO.output(22, GPIO.LOW)
-GPIO.output(23, GPIO.LOW)
+GPIO.output(27, GPIO.HIGH)
+GPIO.output(22, GPIO.HIGH)
+GPIO.output(23, GPIO.HIGH)
+GPIO.output(24, GPIO.HIGH)
 
 sensor = BMP280.BMP280()
 target_temp = 69
@@ -99,9 +106,9 @@ class S(BaseHTTPRequestHandler):
     def clear_system(self):
         global auto_mode
         auto_mode = False
-        GPIO.output(27, GPIO.LOW)
-        GPIO.output(22, GPIO.LOW)
-        GPIO.output(23, GPIO.LOW)
+        GPIO.output(27, GPIO.HIGH)
+        GPIO.output(22, GPIO.HIGH)
+        GPIO.output(23, GPIO.HIGH)
 
     # Turns the AC on or off
     def toggle_ac(self):
@@ -109,11 +116,11 @@ class S(BaseHTTPRequestHandler):
         self.clear_system()
         if (ac_on == True):
             ac_on = False
-            GPIO.output(23, GPIO.LOW)
+            GPIO.output(23, GPIO.HIGH)
             write_log("SERVER", 4, "AC turned off")
         else:
             ac_on = True
-            GPIO.output(23, GPIO.HIGH)
+            GPIO.output(23, GPIO.LOW)
             write_log("SERVER", 4, "AC turned on")
     
     # Turns the fan on or off
@@ -122,11 +129,11 @@ class S(BaseHTTPRequestHandler):
         self.clear_system()
         if (fan_on == True):
             fan_on = False
-            GPIO.output(22, GPIO.LOW)
+            GPIO.output(22, GPIO.HIGH)
             write_log("SERVER", 4, "Fan turned off")
         else:
             fan_on = True
-            GPIO.output(22, GPIO.HIGH)
+            GPIO.output(22, GPIO.LOW)
             write_log("SERVER", 4, "Fan turned on")
 
     # Turns the heat on or off
@@ -135,11 +142,11 @@ class S(BaseHTTPRequestHandler):
         self.clear_system()
         if (heat_on == True):
             heat_on = False
-            GPIO.output(27, GPIO.LOW)
+            GPIO.output(27, GPIO.HIGH)
             write_log("SERVER", 4, "Heater turned off")
         else:
             heat_on = True
-            GPIO.output(27, GPIO.HIGH)
+            GPIO.output(27, GPIO.LOW)
             write_log("SERVER", 4, "Heater turned on")
 
     # Turns the heat on or off
@@ -337,20 +344,20 @@ def runThermostat():
                 if (cur_temp < (target_temp - variance) and heat_on == False):
                     heat_on = True
                     write_log("THERMOSTAT", 4, "Turning on heater")
-                    GPIO.output(27, GPIO.HIGH)
+                    GPIO.output(27, GPIO.LOW)
                 elif (cur_temp == (target_temp + variance) and heat_on == True):
                     heat_off = False
                     write_log("THERMOSTAT", 4, "Turning off heater")
-                    GPIO.output(27, GPIO.LOW)
+                    GPIO.output(27, GPIO.HIGH)
             else:
                 if (cur_temp > (target_temp + variance) and ac_on == False):
                     ac_on = True
                     write_log("THERMOSTAT", 4, "Turning on ac")
-                    GPIO.output(23, GPIO.HIGH)
+                    GPIO.output(23, GPIO.LOW)
                 elif (cur_temp == (target_temp - variance) and ac_on == True):
                     ac_on = False
                     write_log("THERMOSTAT", 4, "Turning off ac")
-                    GPIO.output(23, GPIO.LOW)
+                    GPIO.output(23, GPIO.HIGH)
         sleep(15) # We are in no hurry, only check data every 15 seconds
      
 # Run Stats logger; the stats logger tracks the temperature, humidity and other stats over time           
