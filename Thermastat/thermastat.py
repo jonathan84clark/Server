@@ -1,3 +1,4 @@
+#!/usr/bin/python
 #################################################################
 # THERMOSTAT
 # DESC: The thermostat application is a multi-threaded python program
@@ -29,6 +30,7 @@ import Adafruit_BMP.BMP280 as BMP280
 import RPi.GPIO as GPIO
 
 # Setup the GPIO pins
+GPIO.setwarnings(False) # Disable unused warnings
 GPIO.setmode(GPIO.BCM) # Broadcom pin-numbering scheme
 GPIO.setup(27, GPIO.OUT) # Heater Pin
 GPIO.setup(22, GPIO.OUT) # Fan Pin
@@ -78,6 +80,7 @@ class S(BaseHTTPRequestHandler):
             self.path = "/index.html"
         print(self.path)
         
+        curdir = "/home/pi/GitHub/Server/Thermastat/"
         file_path = curdir + sep + self.path
         filename, file_extension = os.path.splitext(file_path)
         print(file_extension)
@@ -86,7 +89,7 @@ class S(BaseHTTPRequestHandler):
             self.send_header('Content-type', "text/json")
             self.end_headers()
             jsonString = '{"target":' + str(target_temp) + ', "temperature":' + str(insideTemp) + ', "humidity":' + str(insideHumid) + ', '
-            jsonString += '"weatherTemp":' + str(outsideTemp) + ', "weatherHumid":' + str(outsideHumid) + ', "windSpd":' + str(outsideWindDir) + ', '
+            jsonString += '"weatherTemp":' + str(outsideTemp) + ', "weatherHumid":' + str(outsideHumid) + ', "windSpd":' + str(outsideWindSpd) + ', '
             jsonString += '"acStatus":"' + self.statusToString(ac_on) + '", "fanStatus":"' + self.statusToString(fan_on) + '", '
             jsonString += '"heaterStatus":"' + self.statusToString(heat_on) + '", "autoStatus":"' + self.statusToString(auto_mode) + '"}'
             self.wfile.write(jsonString)
@@ -211,12 +214,17 @@ def runServer(server_class=HTTPServer, handler_class=S, port=5000):
     global outsideWindDir
     global insideTemp
     global insideHumid
-
-    server_address = ('', port)
-    httpd = server_class(server_address, handler_class)
-    print 'Starting httpd...'
-    httpd.serve_forever()
-
+    
+    try:
+        server_address = ('', port)
+        httpd = server_class(server_address, handler_class)
+        print 'Starting httpd...'
+        httpd.serve_forever()
+    except:
+       write_log("SERVER", 1, "ERROR: Unable to start server, trying again")
+       sleep(5)
+       runServer()
+        
 def getTemperature():
     global sensor
     global insideTemp
@@ -228,7 +236,7 @@ def getTemperature():
 
 # Write to the system log file
 def write_log(module, level, message):
-    appDir = os.path.dirname(os.path.realpath(__file__))
+    appDir = "/home/pi/GitHub/Server/Thermastat"#os.path.dirname(os.path.realpath(__file__))
     appDir += "/Logs/"
     if os.path.exists(appDir) == False:
        os.mkdir(appDir)
@@ -261,7 +269,7 @@ def log_climate_stats():
     global outsideWindDir
     global insideTemp
     global insideHumid
-    appDir = os.path.dirname(os.path.realpath(__file__))
+    appDir = "/home/pi/GitHub/Server/Thermastat"#os.path.dirname(os.path.realpath(__file__))
     appDir += "/Logs/"
     if os.path.exists(appDir) == False:
        os.mkdir(appDir)
@@ -332,7 +340,6 @@ def runThermostat():
     while (True):
         curClimate = getClimateState()
         cur_temp = getTemperature()
-        print("Target TEMP: " + str(target_temp))
         # Temperature is out of range, now lets turn things on
         # In cold temps ONLY use the heat, climate will be pulled from special RTC function
         if (auto_mode == True): # We only execute the thermostat code if we are in auto-mode
@@ -383,15 +390,19 @@ if __name__ == "__main__":
 
 	# Start up the server thread
     thread = Thread(target = runServer)
+    thread.daemon = True
     thread.start()
-    
+
     # Start the thermostat thread
     thermostatThread = Thread(target = runThermostat)
+    thermostatThread.daemon = True
     thermostatThread.start()
     
     # Start the statistics monitoring system
     statsThread = Thread(target = runStatsLogger)
+    statsThread.daemon = True
     statsThread.start()
     print("All threads started")
     while (True):
         pass
+        
