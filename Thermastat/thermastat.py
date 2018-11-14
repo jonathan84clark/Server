@@ -108,7 +108,13 @@ class S(BaseHTTPRequestHandler):
     
     def clear_system(self):
         global auto_mode
+        global heat_on
+        global ac_on
+        global fan_on
         auto_mode = False
+        heat_on = False
+        ac_on = False
+        fan_on = False
         GPIO.output(27, GPIO.HIGH)
         GPIO.output(22, GPIO.HIGH)
         GPIO.output(23, GPIO.HIGH)
