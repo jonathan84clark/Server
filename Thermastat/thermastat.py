@@ -386,6 +386,7 @@ def runStatsLogger():
         
 
 if __name__ == "__main__":
+    sleep(50)
     write_log("MAIN", 1, "System Started")
 
 	# Start up the server thread
