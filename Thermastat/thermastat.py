@@ -309,7 +309,7 @@ def getClimateState():
     global insideTemp
     global insideHumid
     try:
-        write_log("THERMOSTAT", 4, "Pulling real-world weather")
+        #write_log("THERMOSTAT", 4, "Pulling real-world weather")
         weather = Weather(Unit.FAHRENHEIT)
         location = weather.lookup_by_location('spokane')
         condition = location.condition
