@@ -355,7 +355,7 @@ def runThermostat():
                     write_log("THERMOSTAT", 4, "Turning on heater")
                     GPIO.output(27, GPIO.LOW)
                 elif (cur_temp >= (target_temp + variance) and heat_on == True):
-                    heat_off = False
+                    heat_on = False
                     write_log("THERMOSTAT", 4, "Turning off heater")
                     GPIO.output(27, GPIO.HIGH)
             else:
