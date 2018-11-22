@@ -20,7 +20,8 @@ if args.get("video", None) is None:
 # otherwise, we are reading from a video file
 else:
 	vs = cv2.VideoCapture(args["video"])
- 
+
+nextRecordTime = 0.0
 # initialize the first frame in the video stream
 firstFrame = None
 # loop over the frames of the video
@@ -69,6 +70,7 @@ while True:
 		(x, y, w, h) = cv2.boundingRect(c)
 		cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 		text = "Occupied"
+        # TODO: Record a video frame here
 		
 			# draw the text and timestamp on the frame
 	cv2.putText(frame, "Room Status: {}".format(text), (10, 20),
@@ -80,6 +82,11 @@ while True:
 	cv2.imshow("Security Feed", frame)
 	cv2.imshow("Thresh", thresh)
 	cv2.imshow("Frame Delta", frameDelta)
+	timeNow = time.time()
+	if (nextRecordTime < timeNow):
+		print("Time")
+		nextRecordTime = timeNow + 1.0
+	#cv2.imwrite(name, frame)
 	key = cv2.waitKey(1) & 0xFF
  
 	# if the `q` key is pressed, break from the lop
