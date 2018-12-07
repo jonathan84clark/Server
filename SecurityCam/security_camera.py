@@ -7,6 +7,7 @@
 # motion is sensed.
 # Update: 12/6/2018, Added code to support uploading files to Google Drive
 # now images are added to Google drive when they are captured.
+# Update: 12/7/2018, Added code to enable Google Drive upload multi-threading
 #################################################################
 from __future__ import print_function
 from imutils.video import VideoStream
@@ -16,12 +17,11 @@ import imutils
 import time
 import cv2
 import os
+import threading
 from apiclient.discovery import build
 from apiclient.http import MediaFileUpload
 from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
-
-
 from googleapiclient.discovery import build
 from httplib2 import Http
 from oauth2client import file, client, tools
@@ -86,6 +86,7 @@ def send_email(smtp_address, smtp_password, toaddr, fromaddr, subject, body, att
       write_log("EMAIL", "ERROR", "Unable to send email.")
 
 def motion_detect():
+	imageFiles = []
 	gauth = GoogleAuth()
 	# Try to load saved client credentials
 	gauth.LoadCredentialsFile("mycreds.txt")
@@ -183,13 +184,16 @@ def motion_detect():
 				imageName =  imageDirectory + "img" + str(imageCount) + ".jpg"
 				imageCount = imageCount + 1
 				cv2.imwrite(imageName, frame)
-				uploadToDrive(drive, imageName)
+				imageFiles.append(imageName)
 			nextRecordTime = timeNow + 1.0
 
 		# Reset occupied every few seconds
 		if (occupiedTimeout < timeNow):
 			occupied = False
 			firstFrame = None
+			processThread = threading.Thread(target=uploadImages, args=(drive,imageFiles))  # <- note extra ','
+			processThread.start()
+			imageFiles = []
 			occupiedTimeout = timeNow + 10.0
 
 		key = cv2.waitKey(1) & 0xFF
@@ -201,6 +205,10 @@ def motion_detect():
 	# cleanup the camera and close any open windows
 	vs.stop()
 	cv2.destroyAllWindows()
+
+def uploadImages(drive, imageFiles):
+	for imageFile in imageFiles:
+		uploadToDrive(drive, imageFile)
 
 def uploadToDrive(drive, filePath):
 	textfile = drive.CreateFile()
