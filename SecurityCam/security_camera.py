@@ -41,7 +41,6 @@ show_images = True
 imageDirectory = "C:\\Users\\jonat\\Desktop\\"
 logDirectory = "C:\\Users\\jonat\\Desktop\\"
 # If modifying these scopes, delete the file token.json.
-#SCOPES = 'https://www.googleapis.com/auth/drive.metadata.readonly'
 SCOPES = 'https://www.googleapis.com/auth/drive'
 # If modifying these scopes, delete the file token.pickle.
 SCOPES_GMAIL = ['https://mail.google.com/']
@@ -68,6 +67,7 @@ def write_log(module, level, message):
    
 
 def motion_detect():
+	emailThread = None
 	imageFiles = []
 	gauth = GoogleAuth()
 	# Try to load saved client credentials
@@ -144,6 +144,12 @@ def motion_detect():
 				text = "Occupied"
 				if (occupied == False):
 					write_log("SEC_CAM", 1, "Motion event detected")
+					sender = "jonathan84clark@gmail.com"
+					to = sender
+					subject = "Motion Event"
+					message_text = "A motion event has been detected by the security system."
+					#emailThread = threading.Thread(target=send_email, args=(sender,to,subject,message_text))
+					send_email(sender,to,subject,message_text)
 				occupied = True
 				timeNow = time.time()
 		
@@ -193,10 +199,9 @@ def uploadImages(drive, imageFiles):
 		uploadToDrive(drive, imageFile)
 
 def uploadToDrive(drive, filePath):
-    pass
-	#textfile = drive.CreateFile()
-	#textfile.SetContentFile(filePath)
-	#textfile.Upload()
+	textfile = drive.CreateFile()
+	textfile.SetContentFile(filePath)
+	textfile.Upload()
 
 def send_email(sender, to, subject, message_text):
     """Shows basic usage of the Gmail API.
@@ -238,9 +243,7 @@ def send_email(sender, to, subject, message_text):
         #print 'An error occurred: %s' % error 
 
 def main():
-    #motion_detect()
-	send_email("jonathan84clark@gmail.com", "jonathan84clark@gmail.com", "Motion Event", "Motion Event")
+    motion_detect()
 
 if __name__ == '__main__':
     main()
-#motion_detect()
