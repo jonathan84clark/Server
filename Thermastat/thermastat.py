@@ -26,9 +26,11 @@ from sys import argv
 from threading import Thread
 from time import sleep
 import datetime
-import Adafruit_BMP.BMP280 as BMP280
-import RPi.GPIO as GPIO
+import json
+#import Adafruit_BMP.BMP280 as BMP280
+#import RPi.GPIO as GPIO
 
+'''
 # Setup the GPIO pins
 GPIO.setwarnings(False) # Disable unused warnings
 GPIO.setmode(GPIO.BCM) # Broadcom pin-numbering scheme
@@ -44,6 +46,7 @@ GPIO.output(23, GPIO.HIGH)
 GPIO.output(24, GPIO.HIGH)
 
 sensor = BMP280.BMP280()
+'''
 target_temp = 69
 system_enabled = True
 ac_on = False
@@ -60,8 +63,13 @@ outsideHumid = 30
 outsideWindSpd = 20
 outsideWindDir = 270
 
+logFilePath = "C:\\Users\\jonat\\Desktop\\"
+#logFilePath = "/home/pi/GitHub/Server/Thermastat"
 supported_files = {".html" : 'text/html', ".css" : 'text/css', "jpeg" : 'image/jpeg',
                    ".js" : 'text/javascript'}
+
+dataSet = {"target" : 69.0, "temperature" : 60, "humidity" : 20, "weatherTemp": 70.0, "weatherHumid": 30.0, "windspd": 20,
+           "acStatus" : False, "fanStatus" : False, "heaterStatus": False, "autoStatus": True}
 
 class S(BaseHTTPRequestHandler):
     def _set_headers(self):
@@ -88,10 +96,7 @@ class S(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-type', "text/json")
             self.end_headers()
-            jsonString = '{"target":' + str(target_temp) + ', "temperature":' + str(insideTemp) + ', "humidity":' + str(insideHumid) + ', '
-            jsonString += '"weatherTemp":' + str(outsideTemp) + ', "weatherHumid":' + str(outsideHumid) + ', "windSpd":' + str(outsideWindSpd) + ', '
-            jsonString += '"acStatus":"' + self.statusToString(ac_on) + '", "fanStatus":"' + self.statusToString(fan_on) + '", '
-            jsonString += '"heaterStatus":"' + self.statusToString(heat_on) + '", "autoStatus":"' + self.statusToString(auto_mode) + '"}'
+            jsonString = json.dumps(dataSet)
             self.wfile.write(jsonString)
         elif (os.path.isfile(file_path) and file_extension in supported_files):
             f = open(file_path, 'rb')
@@ -107,76 +112,73 @@ class S(BaseHTTPRequestHandler):
         self._set_headers()
     
     def clear_system(self):
-        global auto_mode
-        global heat_on
-        global ac_on
-        global fan_on
-        auto_mode = False
-        heat_on = False
-        ac_on = False
-        fan_on = False
-        GPIO.output(27, GPIO.HIGH)
-        GPIO.output(22, GPIO.HIGH)
-        GPIO.output(23, GPIO.HIGH)
+	    global dataSet
+		dataSet["autoStatus"] = False
+		dataSet["heaterStatus"] = False
+		dataSet["acStatus"] = False
+		dataSet["fanStatus"] = False
+        #GPIO.output(27, GPIO.HIGH)
+        #GPIO.output(22, GPIO.HIGH)
+        #GPIO.output(23, GPIO.HIGH)
 
     # Turns the AC on or off
     def toggle_ac(self):
-        global ac_on
+        global dataSet
         self.clear_system()
-        if (ac_on == True):
-            ac_on = False
-            GPIO.output(23, GPIO.HIGH)
+        if (dataSet["acStatus"] == True):
+            dataSet["acStatus"] = False
+            #GPIO.output(23, GPIO.HIGH)
             write_log("SERVER", 4, "AC turned off")
         else:
-            ac_on = True
-            GPIO.output(23, GPIO.LOW)
+            dataSet["acStatus"] = True
+            #GPIO.output(23, GPIO.LOW)
             write_log("SERVER", 4, "AC turned on")
     
     # Turns the fan on or off
     def toggle_fan(self):
-        global fan_on
+        global dataSet
         self.clear_system()
-        if (fan_on == True):
-            fan_on = False
-            GPIO.output(22, GPIO.HIGH)
+        if (dataSet["fanStatus"] == True):
+            dataSet["fanStatus"] = False
+            #GPIO.output(22, GPIO.HIGH)
             write_log("SERVER", 4, "Fan turned off")
         else:
-            fan_on = True
-            GPIO.output(22, GPIO.LOW)
+            dataSet["fanStatus"] = True
+            #GPIO.output(22, GPIO.LOW)
             write_log("SERVER", 4, "Fan turned on")
 
     # Turns the heat on or off
     def toggle_heat(self):
-        global heat_on
+        global dataSet
         self.clear_system()
-        if (heat_on == True):
-            heat_on = False
-            GPIO.output(27, GPIO.HIGH)
+        if (dataSet["heaterStatus"] == True):
+            dataSet["heaterStatus"] = False
+            #GPIO.output(27, GPIO.HIGH)
             write_log("SERVER", 4, "Heater turned off")
         else:
-            heat_on = True
-            GPIO.output(27, GPIO.LOW)
+            dataSet["heaterStatus"] = True
+            #GPIO.output(27, GPIO.LOW)
             write_log("SERVER", 4, "Heater turned on")
 
     # Turns the heat on or off
     def toggle_auto(self):
-        global auto_mode
+        global dataSet
         self.clear_system()
-        if (auto_mode == True):
-            auto_mode = False
+        if (dataSet["autoStatus"] == True):
+            dataSet["autoStatus"] = False
             write_log("SERVER", 4, "Auto mode off")
         else:
-            auto_mode = True
+            dataSet["autoStatus"] = True
             write_log("SERVER", 4, "Auto mode on")
 
     # Turns the heat on or off
     def toggle_off(self):
         self.clear_system()
-        auto_mode = False
+        dataSet["autoStatus"] = False
         pass
 
     def do_POST(self):
-        global target_temp
+        global dataSet
         # Doesn't do anything with posted data
         output = "Submitted"
         content_length = int(self.headers['Content-Length']) # <--- Gets the size of data
@@ -196,7 +198,7 @@ class S(BaseHTTPRequestHandler):
                 elif (key_value[0] == "auto"):
                     self.toggle_auto()
                 elif (key_value[0] == "target"):
-                    target_temp = float(key_value[1])
+                    dataSet["target"] = float(key_value[1])
                     write_log("SERVER", 2, "Target temp set to: " + str(key_value[1]))
                 else:
                     write_log("SERVER", 1, "ERROR: Invalid command: " + post_str)
@@ -207,19 +209,7 @@ class S(BaseHTTPRequestHandler):
         self.wfile.write("<html><body><h1>" + output + "</h1></body></html>")
 
 def runServer(server_class=HTTPServer, handler_class=S, port=5000):
-    global target_temp
-    global system_enabled
-    global ac_on
-    global heat_on
-    global fan_on
-    global variance
-    global auto_mode
-    global outsideTemp
-    global outsideHumid
-    global outsideWindSpd
-    global outsideWindDir
-    global insideTemp
-    global insideHumid
+    global dataSet
     
     try:
         server_address = ('', port)
@@ -233,16 +223,16 @@ def runServer(server_class=HTTPServer, handler_class=S, port=5000):
         
 def getTemperature():
     global sensor
-    global insideTemp
+    global dataSet
 
-    tempC = sensor.read_temperature()
-    insideTemp = (tempC * 9.0 / 5.0) + 32.0
+    #tempC = sensor.read_temperature()
+    #dataSet["temperature"] = (tempC * 9.0 / 5.0) + 32.0
 
-    return insideTemp
+    return dataSet["temperature"]
 
 # Write to the system log file
 def write_log(module, level, message):
-    appDir = "/home/pi/GitHub/Server/Thermastat"#os.path.dirname(os.path.realpath(__file__))
+    appDir = logFilePath
     appDir += "/Logs/"
     if os.path.exists(appDir) == False:
        os.mkdir(appDir)
@@ -262,20 +252,8 @@ def write_log(module, level, message):
 
 # Write to the system log file
 def log_climate_stats():
-    global target_temp
-    global system_enabled
-    global ac_on
-    global heat_on
-    global fan_on
-    global variance
-    global auto_mode
-    global outsideTemp
-    global outsideHumid
-    global outsideWindSpd
-    global outsideWindDir
-    global insideTemp
-    global insideHumid
-    appDir = "/home/pi/GitHub/Server/Thermastat"#os.path.dirname(os.path.realpath(__file__))
+    global dataSet
+    appDir = logFilePath
     appDir += "/Logs/"
     if os.path.exists(appDir) == False:
        os.mkdir(appDir)
@@ -283,8 +261,8 @@ def log_climate_stats():
     logName = appDir + t.strftime("Log_Stats" + "%d_%m_%y_.csv")
     dateString = t.strftime("%d/%m/%y")
     timeString = t.strftime("%H:%M:%S")
-    csvString = dateString + "," + timeString + "," + str(outsideTemp) + "," + str(insideTemp) + "," + str(outsideWindSpd) + ","
-    csvString += str(outsideWindDir) + "," + str(outsideHumid) + "," + str(insideHumid) + "\n"
+    csvString = dateString + "," + timeString + "," + str(dataSet["weatherTemp"]) + "," + str(dataSet["temperature"]) + "," + str(dataSet["windspd"]) + ","
+    csvString += str(dataSet["weatherTemp"]) + "," + str(dataSet["weatherHumid"]) + "," + str(dataSet["humidity"]) + "\n"
     if os.path.exists(logName):
         file = open(logName, "a")
     else:
@@ -295,19 +273,7 @@ def log_climate_stats():
 
 # Gets the current external temperature and climate info from yahoo
 def getClimateState():
-    global target_temp
-    global system_enabled
-    global ac_on
-    global heat_on
-    global fan_on
-    global variance
-    global auto_mode
-    global outsideTemp
-    global outsideHumid
-    global outsideWindSpd
-    global outsideWindDir
-    global insideTemp
-    global insideHumid
+    global dataSet
     try:
         #write_log("THERMOSTAT", 4, "Pulling real-world weather")
         weather = Weather(Unit.FAHRENHEIT)
@@ -392,7 +358,7 @@ def runStatsLogger():
         
 
 if __name__ == "__main__":
-    sleep(50)
+    #sleep(50)
     write_log("MAIN", 1, "System Started")
 
 	# Start up the server thread
