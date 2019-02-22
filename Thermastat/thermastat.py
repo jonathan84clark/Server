@@ -12,9 +12,11 @@
 # are working.
 # Update: 11/10/2018, The relay board uses LOW values to enable relays.
 # On boot the GPIO pins are low which would turn on all relays. So 
-# what we will do is have the 4th realy switch the power. The power will
+# what we will do is have the 4th really switch the power. The power will
 # only be applied if that relay is in the off position (high). This will
 # allow us to control when the system is working.
+# Update: 2/21/2019, Cleaned up the code. Also added the code for the new 
+# Yahoo weather API.
 ##################################################################
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from weather import Weather, Unit
@@ -27,10 +29,12 @@ from threading import Thread
 from time import sleep
 import datetime
 import json
-#import Adafruit_BMP.BMP280 as BMP280
-#import RPi.GPIO as GPIO
+import time, uuid, urllib, urllib2
+import hmac, hashlib
+from base64 import b64encode
+import Adafruit_BMP.BMP280 as BMP280
+import RPi.GPIO as GPIO
 
-'''
 # Setup the GPIO pins
 GPIO.setwarnings(False) # Disable unused warnings
 GPIO.setmode(GPIO.BCM) # Broadcom pin-numbering scheme
@@ -46,22 +50,12 @@ GPIO.output(23, GPIO.HIGH)
 GPIO.output(24, GPIO.HIGH)
 
 sensor = BMP280.BMP280()
-'''
-target_temp = 69
-system_enabled = True
-ac_on = False
-heat_on = False
-fan_on = False
-variance = 1
-auto_mode = True
 
-# Current statistics
-insideTemp = 60
-insideHumid = 20
-outsideTemp = 70
-outsideHumid = 30
-outsideWindSpd = 20
-outsideWindDir = 270
+location = 'spokane,wa'
+variance = 1
+app_id = ''
+consumer_key = ''
+consumer_secret = ''
 
 logFilePath = "C:\\Users\\jonat\\Desktop\\"
 #logFilePath = "/home/pi/GitHub/Server/Thermastat"
@@ -112,14 +106,14 @@ class S(BaseHTTPRequestHandler):
         self._set_headers()
     
     def clear_system(self):
-	    global dataSet
-		dataSet["autoStatus"] = False
-		dataSet["heaterStatus"] = False
-		dataSet["acStatus"] = False
-		dataSet["fanStatus"] = False
-        #GPIO.output(27, GPIO.HIGH)
-        #GPIO.output(22, GPIO.HIGH)
-        #GPIO.output(23, GPIO.HIGH)
+        global dataSet
+        dataSet["autoStatus"] = False
+        dataSet["heaterStatus"] = False
+        dataSet["acStatus"] = False
+        dataSet["fanStatus"] = False
+        GPIO.output(27, GPIO.HIGH)
+        GPIO.output(22, GPIO.HIGH)
+        GPIO.output(23, GPIO.HIGH)
 
     # Turns the AC on or off
     def toggle_ac(self):
@@ -127,11 +121,11 @@ class S(BaseHTTPRequestHandler):
         self.clear_system()
         if (dataSet["acStatus"] == True):
             dataSet["acStatus"] = False
-            #GPIO.output(23, GPIO.HIGH)
+            GPIO.output(23, GPIO.HIGH)
             write_log("SERVER", 4, "AC turned off")
         else:
             dataSet["acStatus"] = True
-            #GPIO.output(23, GPIO.LOW)
+            GPIO.output(23, GPIO.LOW)
             write_log("SERVER", 4, "AC turned on")
     
     # Turns the fan on or off
@@ -140,11 +134,11 @@ class S(BaseHTTPRequestHandler):
         self.clear_system()
         if (dataSet["fanStatus"] == True):
             dataSet["fanStatus"] = False
-            #GPIO.output(22, GPIO.HIGH)
+            GPIO.output(22, GPIO.HIGH)
             write_log("SERVER", 4, "Fan turned off")
         else:
             dataSet["fanStatus"] = True
-            #GPIO.output(22, GPIO.LOW)
+            GPIO.output(22, GPIO.LOW)
             write_log("SERVER", 4, "Fan turned on")
 
     # Turns the heat on or off
@@ -153,11 +147,11 @@ class S(BaseHTTPRequestHandler):
         self.clear_system()
         if (dataSet["heaterStatus"] == True):
             dataSet["heaterStatus"] = False
-            #GPIO.output(27, GPIO.HIGH)
+            GPIO.output(27, GPIO.HIGH)
             write_log("SERVER", 4, "Heater turned off")
         else:
             dataSet["heaterStatus"] = True
-            #GPIO.output(27, GPIO.LOW)
+            GPIO.output(27, GPIO.LOW)
             write_log("SERVER", 4, "Heater turned on")
 
     # Turns the heat on or off
@@ -225,8 +219,8 @@ def getTemperature():
     global sensor
     global dataSet
 
-    #tempC = sensor.read_temperature()
-    #dataSet["temperature"] = (tempC * 9.0 / 5.0) + 32.0
+    tempC = sensor.read_temperature()
+    dataSet["temperature"] = (tempC * 9.0 / 5.0) + 32.0
 
     return dataSet["temperature"]
 
@@ -272,84 +266,86 @@ def log_climate_stats():
     file.close()
 
 # Gets the current external temperature and climate info from yahoo
-def getClimateState():
+def getClimateState(request):
     global dataSet
     try:
         #write_log("THERMOSTAT", 4, "Pulling real-world weather")
-        weather = Weather(Unit.FAHRENHEIT)
-        location = weather.lookup_by_location('spokane')
-        condition = location.condition
-    
-        outsideTemp = condition.temp
-        outsideHumid = location.atmosphere.humidity
-        outsideWindSpd = location.wind.speed
-        outsideWindDir = location.wind.direction
+        response = urllib2.urlopen(request).read()
+        loaded_json = json.loads(response)
+        dataSet["weatherHumid"] = loaded_json["current_observation"]["atmosphere"]["humidity"]
+        dataSet["weatherTemp"] = loaded_json["current_observation"]["condition"]["temperature"]
+        #dataSet["windspd"] = location.wind.speed
+        #dataSet["windDir"] = location.wind.directio
     except:
         write_log("THERMOSTAT", 1, "EXCEPTION: Unable to pull real-world weather")
 
-    if (int(outsideTemp) < 60.0): # Colder temperatures are below 60 degrees
+    if (int(dataSet["weatherTemp"]) < 60.0): # Colder temperatures are below 60 degrees
         return 1
     else:
         return 0
 
 # Runs the automatic thermostat thread
 def runThermostat():
-    global target_temp
-    global system_enabled
-    global ac_on
-    global heat_on
-    global fan_on
-    global variance
-    global auto_mode
-    global outsideTemp
-    global outsideHumid
-    global outsideWindSpd
-    global outsideWindDir
-    global insideTemp
-    global insideHumid
+    global dataSet
     global sensor
+    url = 'https://weather-ydn-yql.media.yahoo.com/forecastrss'
+    method = 'GET'
+    concat = '&'
+    query = {'location': location, 'format': 'json'}
+    oauth = {
+            'oauth_consumer_key': consumer_key,
+            'oauth_nonce': uuid.uuid4().hex,
+            'oauth_signature_method': 'HMAC-SHA1',
+            'oauth_timestamp': str(int(time.time())),
+            'oauth_version': '1.0'
+    }
+
+    merged_params = query.copy()
+    merged_params.update(oauth)
+    sorted_params = [k + '=' + urllib.quote(merged_params[k], safe='') for k in sorted(merged_params.keys())]
+    signature_base_str =  method + concat + urllib.quote(url, safe='') + concat + urllib.quote(concat.join(sorted_params), safe='')
+
+    composite_key = urllib.quote(consumer_secret, safe='') + concat
+    oauth_signature = b64encode(hmac.new(composite_key, signature_base_str, hashlib.sha1).digest())
+
+    oauth['oauth_signature'] = oauth_signature
+    auth_header = 'OAuth ' + ', '.join(['{}="{}"'.format(k,v) for k,v in oauth.iteritems()])
+
+
+    url = url + '?' + urllib.urlencode(query)
+    request = urllib2.Request(url)
+    request.add_header('Authorization', auth_header)
+    request.add_header('Yahoo-App-Id', app_id)
     
     while (True):
-        curClimate = getClimateState()
+        curClimate = getClimateState(request)
         cur_temp = getTemperature()
         # Temperature is out of range, now lets turn things on
         # In cold temps ONLY use the heat, climate will be pulled from special RTC function
-        if (auto_mode == True): # We only execute the thermostat code if we are in auto-mode
+        if (dataSet["autoStatus"] == True): # We only execute the thermostat code if we are in auto-mode
             if (curClimate == 1):
-                if (cur_temp < (target_temp - variance) and heat_on == False):
-                    heat_on = True
+                if (cur_temp < (dataSet["target"] - variance) and dataSet["heaterStatus"] == False):
+                    dataSet["heaterStatus"] = True
                     write_log("THERMOSTAT", 4, "Turning on heater")
                     GPIO.output(27, GPIO.LOW)
-                elif (cur_temp >= (target_temp + variance) and heat_on == True):
-                    heat_on = False
+                elif (cur_temp >= (dataSet["target"] + variance) and dataSet["heaterStatus"] == True):
+                    dataSet["heaterStatus"] = False
                     write_log("THERMOSTAT", 4, "Turning off heater")
                     GPIO.output(27, GPIO.HIGH)
             else:
-                if (cur_temp > (target_temp + variance) and ac_on == False):
-                    ac_on = True
+                if (cur_temp > (dataSet["target"] + variance) and dataSet["acStatus"] == False):
+                    dataSet["acStatus"] = True
                     write_log("THERMOSTAT", 4, "Turning on ac")
                     GPIO.output(23, GPIO.LOW)
-                elif (cur_temp <= (target_temp - variance) and ac_on == True):
-                    ac_on = False
+                elif (cur_temp <= (dataSet["target"] - variance) and dataSet["acStatus"] == True):
+                    dataSet["acStatus"] = False
                     write_log("THERMOSTAT", 4, "Turning off ac")
                     GPIO.output(23, GPIO.HIGH)
         sleep(15) # We are in no hurry, only check data every 15 seconds
      
 # Run Stats logger; the stats logger tracks the temperature, humidity and other stats over time           
 def runStatsLogger():
-    global target_temp
-    global system_enabled
-    global ac_on
-    global heat_on
-    global fan_on
-    global variance
-    global auto_mode
-    global outsideTemp
-    global outsideHumid
-    global outsideWindSpd
-    global outsideWindDir
-    global insideTemp
-    global insideHumid
+    global dataSet
     global sensor
 
     while (True):
