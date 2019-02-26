@@ -25,11 +25,11 @@ dataSet = {}
 
 # Configuration settings
 location = 'spokane,wa'
-serialPort = "COM5"
-logDirectory = "C:\\Users\\jonat\\Desktop\\"
-csv_file = "C:\\Users\\jonat\\Desktop\\output.csv"
+serialPort = "/dev/ttyUSB0"
+logDirectory = "/home/jonathan/Documents/weatherLog.csv"
+csv_file = "/home/jonathan/Documents/weatherData.csv"
 csv_columns = ['Date','Time','Outdoor Temp', 'Indoor Temp', 'Outdoor Humid', 'Indoor Humid', 'IR Sensor']
-delayBetweenCollect = 5
+delayBetweenCollect = 60
 
 app_id = ''
 consumer_key = ''
@@ -47,7 +47,7 @@ def write_log(module, level, message):
     timeString = t.strftime("%H:%M:%S")
     csvString = dateString + "," + timeString + "," + module + "," + str(level) + "," + message + "\n"
     if os.path.exists(logName):
-        file = open(logName, "a")
+        file = open(logName, "a+")
     else:
         file = open(logName, "w")
         file.write("Date,Time,Module,Level,Message\n")
@@ -89,7 +89,24 @@ def getClimateState():
     request.add_header('Authorization', auth_header)
     request.add_header('Yahoo-App-Id', app_id)
     headerWritten = False
+    isFirst = True
+    try:
+	    # Write the CSV header
+        f = open("/home/jonathan/Documents/weatherData.csv", "a+")
+        line = ""
+        for csvItem in csv_columns:
+            if (isFirst == True):
+                line = line + csvItem
+                isFirst = False
+            else:
+                line = line + ","+ csvItem
+        line = line + "\n"
+        f.write(line)
+        f.close()
+    except IOError:
+        write_log("DataSave", 1, "Unable to write CSV data to file")
     while (True):
+        isFirst = True
         t = datetime.datetime.now()
         dataSet["Date"] = t.strftime("%m/%d/%y")
         dataSet["Time"] = t.strftime("%H:%M:%S")
@@ -115,26 +132,26 @@ def getClimateState():
             dataSet["Indoor Temp"] = data[0]
             dataSet["Indoor Humid"] = data[1]
             dataSet["IR Sensor"] = data[3]
+            print(data[0])
         except:
             write_log("IndoorCollection", 1, "Unable to read data from serial port")
         
         # Save the local data to a CSV file
         try:
-            f = open("C:\\Users\\jonat\\Desktop\\outputFile.csv", "a+")
+            f = open("/home/jonathan/Documents/weatherData.csv", "a+")
             line = ""
-            isFirst = True
-            for headerItem in dataSet:
+            for csvItem in csv_columns:
                 if (isFirst == True):
-                    line = line + str(dataSet[headerItem])
+                    line = line + str(dataSet[csvItem])
                     isFirst = False
                 else:
-                    line = line + ","+ str(dataSet[headerItem])
+                    line = line + ","+ str(dataSet[csvItem])
             line = line + "\n"
             f.write(line)
             f.close()
+            print(line)
         except IOError:
             write_log("DataSave", 1, "Unable to write CSV data to file")
-        #print(dataSet)
         time.sleep(delayBetweenCollect)
 		
 if __name__ == '__main__':
