@@ -28,7 +28,7 @@ location = 'spokane,wa'
 serialPort = "/dev/ttyUSB0"
 logDirectory = "/home/jonathan/Documents/weatherLog.csv"
 csv_file = "/home/jonathan/Documents/weatherData.csv"
-csv_columns = ['Date','Time','Outdoor Temp', 'Indoor Temp', 'Outdoor Humid', 'Indoor Humid', 'IR Sensor']
+csv_columns = ['Date','Time','Outdoor Temp', 'Indoor Temp', 'Indoor Humid', 'IR Sensor']
 delayBetweenCollect = 60
 
 app_id = ''
@@ -55,73 +55,31 @@ def write_log(module, level, message):
     file.close()
     print("[" + module + "] " + str(level) + ": " + message)
 
+def pullData(lat, long):
+    contents = urllib2.urlopen("https://api.weather.gov/points/" + str(lat) + "," + str(long)).read()
+    jsonData = json.loads(contents)
+    weatherData = urllib2.urlopen(jsonData["properties"]["forecast"]).read()
+    jsonData = json.loads(weatherData)
+    recentData = jsonData["properties"]["periods"][0]
+	
+    return recentData
+
 # Gets the current external temperature and climate info from yahoo
 def getClimateState():
     global dataSet
     port = serial.Serial(serialPort, 1)
     port.baudrate = 9600
-    url = 'https://weather-ydn-yql.media.yahoo.com/forecastrss'
-    method = 'GET'
-    concat = '&'
-    query = {'location': location, 'format': 'json'}
-    oauth = {
-            'oauth_consumer_key': consumer_key,
-            'oauth_nonce': uuid.uuid4().hex,
-            'oauth_signature_method': 'HMAC-SHA1',
-            'oauth_timestamp': str(int(time.time())),
-            'oauth_version': '1.0'
-    }
-
-    merged_params = query.copy()
-    merged_params.update(oauth)
-    sorted_params = [k + '=' + urllib.quote(merged_params[k], safe='') for k in sorted(merged_params.keys())]
-    signature_base_str =  method + concat + urllib.quote(url, safe='') + concat + urllib.quote(concat.join(sorted_params), safe='')
-
-    composite_key = urllib.quote(consumer_secret, safe='') + concat
-    oauth_signature = b64encode(hmac.new(composite_key, signature_base_str, hashlib.sha1).digest())
-
-    oauth['oauth_signature'] = oauth_signature
-    auth_header = 'OAuth ' + ', '.join(['{}="{}"'.format(k,v) for k,v in oauth.iteritems()])
-
-
-    url = url + '?' + urllib.urlencode(query)
-    request = urllib2.Request(url)
-    request.add_header('Authorization', auth_header)
-    request.add_header('Yahoo-App-Id', app_id)
-    headerWritten = False
-    isFirst = True
-    try:
-	    # Write the CSV header
-        f = open("/home/jonathan/Documents/weatherData.csv", "a+")
-        line = ""
-        for csvItem in csv_columns:
-            if (isFirst == True):
-                line = line + csvItem
-                isFirst = False
-            else:
-                line = line + ","+ csvItem
-        line = line + "\n"
-        f.write(line)
-        f.close()
-    except IOError:
-        write_log("DataSave", 1, "Unable to write CSV data to file")
+    
     while (True):
         isFirst = True
         t = datetime.datetime.now()
         dataSet["Date"] = t.strftime("%m/%d/%y")
         dataSet["Time"] = t.strftime("%H:%M:%S")
         
-        # Collect local outdoor weather data from Yahoo
+        # Collect local outdoor weather data from Noaa
         try:
-            response = urllib2.urlopen(request).read()
-            loaded_json = json.loads(response)
-            #for x in loaded_json:
-            #	print(x)
-            #	print(loaded_json[x])
-            #	print("\n\n\n")
-	    
-            dataSet["Outdoor Humid"] = loaded_json["current_observation"]["atmosphere"]["humidity"]
-            dataSet["Outdoor Temp"] = loaded_json["current_observation"]["condition"]["temperature"]
+            data = pullData(47.689076, -117.284006)
+            dataSet["Outdoor Temp"] = data["temperature"]
         except:
             write_log("OutdoorCollection", 1, "Unable to read data from Yahoo")
         
