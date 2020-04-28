@@ -10,13 +10,23 @@
 import datetime
 import jetson.inference
 import jetson.utils
+import time
+
+# Some items we may wish to ignore
+exclusion_list = [38, 37]
 
 image_counter = 0
 image_path = '/home/jonathan/Pictures/'
-net = jetson.inference.detectNet("ssd-mobilenet-v2", threshold=0.5)
+net = jetson.inference.detectNet("ssd-mobilenet-v2", threshold=0.80)
 camera = jetson.utils.gstCamera(640, 480, "/dev/video0")
 #display = jetson.utils.glDisplay()
 prev_objects = {}
+date_str = datetime.datetime.now().strftime('%m_%d_%Y_%H_%M_%S')
+filename = '/home/jonathan/Documents/' + 'object_log_' + date_str + '.csv'
+f = open(filename, "a")
+f.write("Date,Time,Type,Instance ID,Confidence")
+f.close()
+print('Saving log data to: ' + filename)
 
 #while display.IsOpen():
 while True:
@@ -28,15 +38,31 @@ while True:
 
     # Determine detected objects for this frame
     for x in range(0, len(detections)):
-        if detections[x].ClassID in detected_ids:
-            detected_ids[detections[x].ClassID] += 1
-        else:
-            detected_ids[detections[x].ClassID] = 0
+        if not detections[x].ClassID in exclusion_list:
+            if detections[x].ClassID in detected_ids:
+                detected_ids[detections[x].ClassID].append({"instance" : detections[x].Instance, "confidence" : detections[x].Confidence})
+                print("Instance id: " + str(detections[x].Instance))
+            else:
+                detected_ids[detections[x].ClassID] = []
+                detected_ids[detections[x].ClassID].append({"instance" : detections[x].Instance, "confidence" : detections[x].Confidence})
+                print("Instance id: " + str(detections[x].Instance))
 
         
     for key in detected_ids:
         # Detect if a new object entered the field of view
-        if not key in prev_objects or detected_ids[key] != prev_objects[key]:
+        if not key in prev_objects or len(detected_ids[key]) != len(prev_objects[key]):
+            # find the largest instance id
+            largest_id = 0
+            newObject = detected_ids[key][0]
+            for x in range(0, len(detected_ids[key])):
+                if detected_ids[key][x]["instance"] > largest_id:
+                    largest_id = detected_ids[key][x]["instance"]
+                    newObject = detected_ids[key][x]
+            csv_date_time = datetime.datetime.now().strftime('%m/%d/%Y,%H:%M:%S')
+            csv_date_time += "," + str(key) + "," + str(newObject["instance"]) + "," + str(newObject["confidence"]) + "\n"
+            f = open(filename, "a")
+            f.write(csv_date_time)
+            f.close()
             print("Object of type: " + str(key) + " entered view")
             newDetection = True
     
@@ -46,7 +72,8 @@ while True:
 
     if newDetection:
         date_stamp = datetime.datetime.now().strftime('%m_%d_%Y_%H_%M_%S')
-        image_name = image_path + str(image_counter) + "_" + date_stamp + ".png"
+        image_name = image_path + date_stamp + "_" + str(image_counter) + ".png"
         image_counter += 1
         jetson.utils.saveImageRGBA(image_name, img, width, height)
+        time.sleep(0.2) # Wait 200ms to prevent chop in the same frame
     #display.SetTitle("Object Detection | Network (:.0f) FPS".format(net.GetNetworkFPS()))
