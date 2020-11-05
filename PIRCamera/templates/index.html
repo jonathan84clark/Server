@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<title>Motion Camera</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/fonts.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/font_awesome.css') }}">
+<style>
+body {font-family: "Lato", sans-serif}
+.mySlides {display: none}
+</style>
+<body onload="pullData();">
+
+<!-- Navbar -->
+<div class="w3-top">
+  <div class="w3-bar w3-black w3-card">
+    <a href="index.html" class="w3-bar-item w3-button w3-padding-large">HOME</a>
+    <a href="tools.html" class="w3-bar-item w3-button w3-padding-large w3-hide-small">TOOLS</a>
+    <a href="git.html" class="w3-bar-item w3-button w3-padding-large w3-hide-small">GIT SERVER</a>
+    <a href="system.html" class="w3-bar-item w3-button w3-padding-large w3-hide-small">SYSTEM INFO</a>
+	<a href="cgi-bin/systeminfo.sh" class="w3-bar-item w3-button w3-padding-large w3-hide-small">SYSTEM INFO2</a>
+    <div class="w3-dropdown-hover w3-hide-small">
+      <button class="w3-padding-large w3-button" title="More">MORE </button>     
+      <div class="w3-dropdown-content w3-bar-block w3-card-4">
+        <a href="#" class="w3-bar-item w3-button">Resources</a>
+        <a href="#" class="w3-bar-item w3-button">SSH Keys</a>
+        <a href="#" class="w3-bar-item w3-button">Media</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<?php
+    if ($_SERVER['REQUEST_METHOD'] === 'POST')
+    {
+        //Ok we got a POST, probably from a FORM, read from $_POST.
+        var_dump($_PSOT); //Use this to see what info we got!
+    }
+    else
+    {
+       //You could assume you got a GET
+       var_dump($_GET); //Use this to see what info we got!
+    }
+?>
+
+
+<!-- Page content -->
+<div class="w3-content" style="max-width:2000px;margin-top:46px">
+
+  <!-- The Band Section -->
+<div class="w3-container w3-content w3-center w3-padding-64" style="max-width:800px" id="band">
+    <h2 class="w3-wide">Motion Camera</h2>
+    <p class="w3-justify">Motion detection camera system.</p>
+
+ 
+<form action="/settings.json">
+  <label for="record_time">Recording Time:</label>
+  <input type="text" id="record_time" name="record_time"><br><br>
+  <label for="fps">FPS:</label>
+  <input type="text" id="fps" name="fps"><br><br>
+  <b class="w3-justify">Resolution</b>
+  <select name="resolution" id="resolution">
+     <option value="640_480">640x480</option>
+     <option value="1280_720">1280x720</option>
+     <option value="1920_1080">1920x1080</option>
+   </select><br><br>
+  <input type="submit" value="Submit">
+</form>
+
+</div>
+<!--
+To use this code on your website, get a free API key from Google.
+Read more at: https://www.w3schools.com/graphics/google_maps_basic.asp
+-->
+
+<!-- Footer -->
+<footer class="w3-container w3-padding-64 w3-center w3-opacity w3-light-grey w3-xlarge">
+  <i class="fa fa-facebook-official w3-hover-opacity"></i>
+  <i class="fa fa-instagram w3-hover-opacity"></i>
+  <i class="fa fa-snapchat w3-hover-opacity"></i>
+  <i class="fa fa-pinterest-p w3-hover-opacity"></i>
+  <i class="fa fa-twitter w3-hover-opacity"></i>
+  <i class="fa fa-linkedin w3-hover-opacity"></i>
+  <p class="w3-medium">Powered by <a href="https://www.w3schools.com/w3css/default.asp" target="_blank">w3.css</a></p>
+</footer>
+
+<script
+src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js">
+</script>
+
+<script>
+function pullData() {
+   //alert("test")
+   $.getJSON("data.json", function(result){
+        $('#fps').val(result.fps.toString())
+        $('#record_time').val(result.record_time.toString())
+        //alert(result.target)
+    });
+}
+
+</script>
+
+</body>
+</html>
