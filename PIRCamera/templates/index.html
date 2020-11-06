@@ -16,34 +16,8 @@ body {font-family: "Lato", sans-serif}
 <div class="w3-top">
   <div class="w3-bar w3-black w3-card">
     <a href="index.html" class="w3-bar-item w3-button w3-padding-large">HOME</a>
-    <a href="tools.html" class="w3-bar-item w3-button w3-padding-large w3-hide-small">TOOLS</a>
-    <a href="git.html" class="w3-bar-item w3-button w3-padding-large w3-hide-small">GIT SERVER</a>
-    <a href="system.html" class="w3-bar-item w3-button w3-padding-large w3-hide-small">SYSTEM INFO</a>
-	<a href="cgi-bin/systeminfo.sh" class="w3-bar-item w3-button w3-padding-large w3-hide-small">SYSTEM INFO2</a>
-    <div class="w3-dropdown-hover w3-hide-small">
-      <button class="w3-padding-large w3-button" title="More">MORE </button>     
-      <div class="w3-dropdown-content w3-bar-block w3-card-4">
-        <a href="#" class="w3-bar-item w3-button">Resources</a>
-        <a href="#" class="w3-bar-item w3-button">SSH Keys</a>
-        <a href="#" class="w3-bar-item w3-button">Media</a>
-      </div>
-    </div>
   </div>
 </div>
-
-<?php
-    if ($_SERVER['REQUEST_METHOD'] === 'POST')
-    {
-        //Ok we got a POST, probably from a FORM, read from $_POST.
-        var_dump($_PSOT); //Use this to see what info we got!
-    }
-    else
-    {
-       //You could assume you got a GET
-       var_dump($_GET); //Use this to see what info we got!
-    }
-?>
-
 
 <!-- Page content -->
 <div class="w3-content" style="max-width:2000px;margin-top:46px">
@@ -54,16 +28,16 @@ body {font-family: "Lato", sans-serif}
     <p class="w3-justify">Motion detection camera system.</p>
 
  
-<form action="/settings.json">
+<form method="post" enctype="text/plain" action="/settings.json">
   <label for="record_time">Recording Time:</label>
   <input type="text" id="record_time" name="record_time"><br><br>
   <label for="fps">FPS:</label>
   <input type="text" id="fps" name="fps"><br><br>
-  <b class="w3-justify">Resolution</b>
+  <label class="w3-justify">Resolution</label>
   <select name="resolution" id="resolution">
-     <option value="640_480">640x480</option>
+     <!--<option value="640_480">640x480</option>
      <option value="1280_720">1280x720</option>
-     <option value="1920_1080">1920x1080</option>
+     <option value="1920_1080">1920x1080</option>-->
    </select><br><br>
   <input type="submit" value="Submit">
 </form>
@@ -92,12 +66,23 @@ src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js">
 <script>
 function pullData() {
    //alert("test")
+   var resolution_texts = ["640x480", "1280x720", "1920x1080"]
    $.getJSON("data.json", function(result){
         $('#fps').val(result.fps.toString())
         $('#record_time').val(result.record_time.toString())
-        //alert(result.target)
+        var current_res_text = result.width.toString() + "x" + result.height.toString();
+        var options = $("#resolution");
+        options.append($("<option />").val(current_res_text.replace("x","_")).text(current_res_text));
+        for (var i = 0; i < resolution_texts.length; i++)
+        {
+            if (resolution_texts[i] != current_res_text)
+            {
+               options.append($("<option />").val(resolution_texts[i].replace("x","_")).text(resolution_texts[i]));
+            }
+        }
     });
 }
+
 
 </script>
 
