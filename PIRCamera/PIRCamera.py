@@ -6,11 +6,18 @@ Author: Jonathan L Clark
 Date: 11/2/2020
 '''
 
-
+from __future__ import print_function
 from flask import Flask
 from flask import render_template
 from flask import Response
 from flask import request, redirect, url_for
+# Google API Stuff
+import pickle
+import os.path
+from googleapiclient.discovery import build
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+from apiclient.http import MediaFileUpload
 
 # creates a Flask application, named app
 app = Flask(__name__)
@@ -23,7 +30,13 @@ from datetime import datetime
 from os import path
 import json
 import os
+import smtplib
+from email.MIMEMultipart import MIMEMultipart
+from email.MIMEText import MIMEText
+from email.MIMEBase import MIMEBase
 import RPi.GPIO as GPIO
+
+SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly','https://www.googleapis.com/auth/drive.appdata', 'https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/drive.install']
 
 PIR_PULSE = 16
 PIR_LIGHT = 26
@@ -84,9 +97,36 @@ class PIRCamera:
         self.height = 720
         self.record_time = 10000
         self.fps = 25
+        self.upload_video = False
+        self.use_light = True
         self.LoadSettings()
+        self.SetupGoogleDrive()
         self.command = "raspivid -vf -t " + str(self.record_time) + " -w " + str(self.width) + " -h " + str(self.height) + " -fps " + str(self.fps) + " -b 1200000 -p 0,0," + str(self.width) + "," + str(self.height)# + " -o " + file_name + ".h264"
 
+    # Sets up the Google drive API for remote transfers
+    def SetupGoogleDrive(self):
+        print("Setting up Google Drive API...")
+        creds = None
+        # The file token.pickle stores the user's access and refresh tokens, and is
+        # created automatically when the authorization flow completes for the first
+        # time.
+        if os.path.exists('token.pickle'):
+            with open('token.pickle', 'rb') as token:
+                creds = pickle.load(token)
+        # If there are no (valid) credentials available, let the user log in.
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+            else:
+                flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+                creds = flow.run_local_server(port=0)
+            # Save the credentials for the next run
+            with open('token.pickle', 'wb') as token:
+                pickle.dump(creds, token)
+
+        self.service = build('drive', 'v3', credentials=creds)
+        print("Google drive setup!")
+        
     # Loads settings from a file
     def LoadSettings(self):
         file_path = '/home/pi/Documents/pir_config.json'
@@ -98,6 +138,8 @@ class PIRCamera:
             self.height = dictionary["height"]
             self.record_time = dictionary["record_time"]
             self.fps = dictionary["fps"]
+            self.use_light = dictionary["use_light"]
+            self.upload_video = dictionary["upload_video"]
         else:
             self.SaveSettings()
 
@@ -113,7 +155,8 @@ class PIRCamera:
     def ToJson(self):
         dictionary = {"detections" : self.detections, "recording" : self.video_recording,
                       "width"      : self.width,      "height" : self.height,
-                      "record_time" : self.record_time, "fps" : self.fps}
+                      "record_time" : self.record_time, "fps" : self.fps,
+                      "upload_video" : self.upload_video, "use_light" : self.use_light}
         jsonStr = json.dumps(dictionary)
 
         return jsonStr
@@ -121,17 +164,29 @@ class PIRCamera:
     # Records a video
     def RecordVideo(self):
         self.video_recording = True
-        GPIO.output(PIR_LIGHT, GPIO.HIGH)
+        if self.use_light:
+            GPIO.output(PIR_LIGHT, GPIO.HIGH)
         print("Recording video...")
         now = datetime.now() # current date and time
-        file_name = now.strftime("/home/pi/Videos/%m_%d_%Y_%H_%M_%S_sec")
+        file_stamp = now.strftime("%m_%d_%Y_%H_%M_%S_sec")
+        file_name = now.strftime("/home/pi/Videos/" + file_stamp)
         self.command = "raspivid -vf -t " + str(self.record_time) + " -w " + str(self.width) + " -h " + str(self.height) + " -fps " + str(self.fps) + " -b 1200000 -p 0,0," + str(self.width) + "," + str(self.height)
         command = self.command + " -o " + file_name + ".h264"
         os.system(command)
         os.system("MP4Box -add " + file_name + ".h264 " + file_name + ".mp4")
         os.system("rm " + file_name + ".h264")
         print("Video finished")
-        GPIO.output(PIR_LIGHT, GPIO.LOW)
+        if self.use_light:
+            GPIO.output(PIR_LIGHT, GPIO.LOW)
+        if self.upload_video:
+            print("Uploading video to Google Drive...")
+            file_metadata = {'name': file_stamp + '.mp4'}
+            media = MediaFileUpload(file_name + ".mp4", mimetype='video/mp4')
+            file = self.service.files().create(body=file_metadata,
+                                        media_body=media,
+                                        fields='id').execute()
+            print("Video uploaded!")
+            
         self.video_recording = False
 
     # Handles motion getting detected
@@ -143,10 +198,11 @@ class PIRCamera:
         record_thread = Thread(target = self.RecordVideo)
         record_thread.daemon = True
         record_thread.start()
-		
+        
 if __name__ == '__main__':
     pir = PIRCamera()
     app.run(host='0.0.0.0', port=80, debug=False)
+    
     while (True):
         time.sleep(1)
     shutdown_server()
