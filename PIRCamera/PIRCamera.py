@@ -62,6 +62,8 @@ def SettingsPost():
     global pir
     try:
         postLines = request.data.split('\n')
+        upload_video = False
+        use_light = False
         for line in postLines:
             pair = line.split('=')
             if len(pair) == 2:
@@ -70,12 +72,18 @@ def SettingsPost():
                     pir.record_time = int(pair[1])
                 elif key == "fps":
                     pir.fps = int(pair[1])
+                elif key == "upload_video":
+                    upload_video = True
+                elif key == "use_light":
+                    use_light = True
                 elif key == "resolution":
                     values = pair[1].split('_')
                     if len(values) == 2:
                         pir.width = int(values[0])
                         pir.height = int(values[1])
         print("Time: " + str(pir.record_time) + " FPS: " + str(pir.fps) + " Res: " + str(pir.width) + "X" + str(pir.height))
+        pir.upload_video = upload_video
+        pir.use_light = use_light
         pir.SaveSettings()
         return render_template('index.html')
     except Exception as e:

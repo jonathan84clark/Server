@@ -29,12 +29,17 @@ body {font-family: "Lato", sans-serif}
 
  
 <form method="post" enctype="text/plain" action="/settings.json">
-  <label for="record_time">Recording Time:</label>
-  <input type="text" id="record_time" name="record_time"><br><br>
-  <label for="fps">FPS:</label>
-  <input type="text" id="fps" name="fps"><br><br>
-  <label class="w3-justify">Resolution</label>
-  <select name="resolution" id="resolution">
+  <input class="w3-left" type="checkbox" id="use_light" name="use_light" value="use_light">
+  <label class="w3-left" for="use_light"> Use light</label><br><br>
+  <input class="w3-left" type="checkbox" id="upload_video" name="upload_video" value="upload_video">
+  <label class="w3-left" for="upload_video"> Upload video</label><br><br>
+  <label class="w3-left" for="record_time">Recording Time:</label><br>
+  <input class="w3-left" type="text" id="record_time" name="record_time"><br><br>
+  <label class="w3-left" for="fps">FPS:</label><br>
+  <input class="w3-left" type="text" id="fps" name="fps"><br><br>
+  <label class="w3-left">Resolution</label><br>
+  <select class="w3-left" name="resolution" id="resolution"><br><br><br><br>
+  
      <!--<option value="640_480">640x480</option>
      <option value="1280_720">1280x720</option>
      <option value="1920_1080">1920x1080</option>-->
@@ -70,6 +75,15 @@ function pullData() {
    $.getJSON("data.json", function(result){
         $('#fps').val(result.fps.toString())
         $('#record_time').val(result.record_time.toString())
+		$('#upload_video').val(result.upload_video)
+		if (result.use_light)
+		{
+		    $('#use_light').prop("checked", true)
+	    }
+		if (result.upload_video)
+		{
+		    $('#upload_video').prop("checked", true)
+		}
         var current_res_text = result.width.toString() + "x" + result.height.toString();
         var options = $("#resolution");
         options.append($("<option />").val(current_res_text.replace("x","_")).text(current_res_text));
