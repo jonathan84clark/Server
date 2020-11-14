@@ -113,27 +113,32 @@ class PIRCamera:
 
     # Sets up the Google drive API for remote transfers
     def SetupGoogleDrive(self):
-        print("Setting up Google Drive API...")
-        creds = None
-        # The file token.pickle stores the user's access and refresh tokens, and is
-        # created automatically when the authorization flow completes for the first
-        # time.
-        if os.path.exists('token.pickle'):
-            with open('token.pickle', 'rb') as token:
-                creds = pickle.load(token)
-        # If there are no (valid) credentials available, let the user log in.
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
-                flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-                creds = flow.run_local_server(port=0)
-            # Save the credentials for the next run
-            with open('token.pickle', 'wb') as token:
-                pickle.dump(creds, token)
+        try:
+            print("Setting up Google Drive API...")
+            creds = None
+            # The file token.pickle stores the user's access and refresh tokens, and is
+            # created automatically when the authorization flow completes for the first
+            # time.
+            if os.path.exists('/home/pi/Server/PIRCamera/token.pickle'):
+                with open('/home/pi/Server/PIRCamera/token.pickle', 'rb') as token:
+                    creds = pickle.load(token)
+            # If there are no (valid) credentials available, let the user log in.
+            if not creds or not creds.valid:
+                if creds and creds.expired and creds.refresh_token:
+                    creds.refresh(Request())
+                else:
+                    flow = InstalledAppFlow.from_client_secrets_file('/home/pi/Server/PIRCamera/credentials.json', SCOPES)
+                    creds = flow.run_local_server(port=0)
+                # Save the credentials for the next run
+                with open('token.pickle', 'wb') as token:
+                    pickle.dump(creds, token)
 
-        self.service = build('drive', 'v3', credentials=creds)
-        print("Google drive setup!")
+            self.service = build('drive', 'v3', credentials=creds)
+            print("Google drive setup!")
+        except Exception as ex:
+            print("Unable to setup google drive, retrying...: " + str(ex))
+            time.sleep(1)
+            self.SetupGoogleDrive()
         
     # Loads settings from a file
     def LoadSettings(self):
@@ -187,13 +192,16 @@ class PIRCamera:
         if self.use_light:
             GPIO.output(PIR_LIGHT, GPIO.LOW)
         if self.upload_video:
-            print("Uploading video to Google Drive...")
-            file_metadata = {'name': file_stamp + '.mp4'}
-            media = MediaFileUpload(file_name + ".mp4", mimetype='video/mp4')
-            file = self.service.files().create(body=file_metadata,
-                                        media_body=media,
-                                        fields='id').execute()
-            print("Video uploaded!")
+            try:
+                print("Uploading video to Google Drive...")
+                file_metadata = {'name': file_stamp + '.mp4'}
+                media = MediaFileUpload(file_name + ".mp4", mimetype='video/mp4')
+                file = self.service.files().create(body=file_metadata,
+                                            media_body=media,
+                                            fields='id').execute()
+                print("Video uploaded!")
+            except:
+                print("Video upload failed!")
             
         self.video_recording = False
 
@@ -207,10 +215,20 @@ class PIRCamera:
         record_thread.daemon = True
         record_thread.start()
         
+def StartFlask():
+    try:
+        app.run(host='0.0.0.0', port=80, debug=False)
+        
+    except:
+        print("Unable to start flask, restarting...")
+        time.sleep(1)
+        StartFlask()
+        
 if __name__ == '__main__':
     pir = PIRCamera()
-    app.run(host='0.0.0.0', port=80, debug=False)
+    
+    StartFlask()
+
     
     while (True):
         time.sleep(1)
-    shutdown_server()
