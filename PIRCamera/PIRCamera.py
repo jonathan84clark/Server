@@ -176,21 +176,26 @@ class PIRCamera:
         
     # Records a video
     def RecordVideo(self):
+        if self.video_recording:
+            return
         self.video_recording = True
-        if self.use_light:
-            GPIO.output(PIR_LIGHT, GPIO.HIGH)
-        print("Recording video...")
-        now = datetime.now() # current date and time
-        file_stamp = now.strftime("%m_%d_%Y_%H_%M_%S_sec")
-        file_name = now.strftime("/home/pi/Videos/" + file_stamp)
-        self.command = "raspivid -vf -t " + str(self.record_time) + " -w " + str(self.width) + " -h " + str(self.height) + " -fps " + str(self.fps) + " -b 1200000 -p 0,0," + str(self.width) + "," + str(self.height)
-        command = self.command + " -o " + file_name + ".h264"
-        os.system(command)
-        os.system("MP4Box -add " + file_name + ".h264 " + file_name + ".mp4")
-        os.system("rm " + file_name + ".h264")
-        print("Video finished")
-        if self.use_light:
-            GPIO.output(PIR_LIGHT, GPIO.LOW)
+        try:
+            if self.use_light:
+                GPIO.output(PIR_LIGHT, GPIO.HIGH)
+            print("Recording video...")
+            now = datetime.now() # current date and time
+            file_stamp = now.strftime("%m_%d_%Y_%H_%M_%S_sec")
+            file_name = now.strftime("/home/pi/Videos/" + file_stamp)
+            self.command = "raspivid -vf -t " + str(self.record_time) + " -w " + str(self.width) + " -h " + str(self.height) + " -fps " + str(self.fps) + " -b 1200000 -p 0,0," + str(self.width) + "," + str(self.height)
+            command = self.command + " -o " + file_name + ".h264"
+            os.system(command)
+            os.system("MP4Box -add " + file_name + ".h264 " + file_name + ".mp4")
+            os.system("rm " + file_name + ".h264")
+            print("Video finished")
+            if self.use_light:
+                GPIO.output(PIR_LIGHT, GPIO.LOW)
+        except Exception as e:
+            print("Exception in record video: " + str(e))
         if self.upload_video:
             try:
                 print("Uploading video to Google Drive...")
@@ -200,8 +205,8 @@ class PIRCamera:
                                             media_body=media,
                                             fields='id').execute()
                 print("Video uploaded!")
-            except:
-                print("Video upload failed!")
+            except Exception as e:
+                print("Video upload failed: " + str(e))
             
         self.video_recording = False
 
@@ -219,8 +224,8 @@ def StartFlask():
     try:
         app.run(host='0.0.0.0', port=80, debug=False)
         
-    except:
-        print("Unable to start flask, restarting...")
+    except Exception as e:
+        print("Unable to start flask, restarting: " + str(e))
         time.sleep(1)
         StartFlask()
         
