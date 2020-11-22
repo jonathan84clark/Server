@@ -29,6 +29,8 @@ body {font-family: "Lato", sans-serif}
 
  
 <form method="post" enctype="text/plain" action="/settings.json">
+  <input class="w3-left" type="checkbox" id="enabled" name="enabled" value="enabled">
+  <label class="w3-left" for="enabled"> Enabled</label><br><br>
   <input class="w3-left" type="checkbox" id="use_light" name="use_light" value="use_light">
   <label class="w3-left" for="use_light"> Use light</label><br><br>
   <input class="w3-left" type="checkbox" id="upload_video" name="upload_video" value="upload_video">
@@ -83,6 +85,10 @@ function pullData() {
 		if (result.upload_video)
 		{
 		    $('#upload_video').prop("checked", true)
+		}
+		if (result.enabled)
+		{
+		    $('#enabled').prop("enabled", true)
 		}
         var current_res_text = result.width.toString() + "x" + result.height.toString();
         var options = $("#resolution");
