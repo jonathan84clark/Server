@@ -59,7 +59,7 @@ ENDPOINT = "a2yizg9mkkd9ph-ats.iot.us-west-2.amazonaws.com"
 TOPIC = "camera/control"
 CLIENT_ID = "PIRCamera_MQTT"
 RANGE = 20
-move_threshold = 5
+move_threshold = 50
 
 PIR_PULSE = 16
 PIR_LIGHT = 26
@@ -364,7 +364,8 @@ class PIRCamera:
             thresh = cv2.dilate(thresh, None, iterations=2)
             cnts = cv2.findContours(thresh.copy(), cv2.RETR_TREE,
                 cv2.CHAIN_APPROX_SIMPLE)
-            cnts = cnts[0] #if imutils.is_cv2() else cnts[1]
+                
+            cnts = cnts[1] #if imutils.is_cv2() else cnts[1]
             #print(cnts)
             #if cnts != None:
             # loop over the contours
@@ -372,14 +373,20 @@ class PIRCamera:
                 # if the contour is too small, ignore it
                 #if cv2.contourArea(c) < args["min_area"]:
                 #	continue
-                contour_number = 0
-                for x in range(0, len(c)):
-                    contour_number += c[x]
-                #print(contour_number)
+                #print(cv2.contourArea(c))
+                contour_area = cv2.contourArea(c)
+                #for x in range(0, len(c)):
+                #    contour_number += c[x]
+                #try:
+                #    val1 = cv2.contourArea(c)
+                #    print("No exception")
+                #except:
+                #    pass
  
                 # compute the bounding box for the contour, draw it on the frame,
                 # and update the text
-                if (contour_number > 0):
+                if (contour_area > 300):
+                    #print("Greater than zero")
                     (x, y, w, h) = cv2.boundingRect(c)
                     cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
                     text = "Occupied"
