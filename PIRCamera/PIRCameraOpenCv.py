@@ -69,6 +69,46 @@ GPIO.setmode(GPIO.BCM) # Broadcom pin-numbering scheme
 GPIO.setup(PIR_PULSE, GPIO.IN)
 GPIO.setup(PIR_LIGHT, GPIO.OUT)
 
+# Set resolution for the video capture
+# Function adapted from https://kirr.co/0l6qmh
+def change_res(cap, width, height):
+    cap.set(3, width)
+    cap.set(4, height)
+    
+# grab resolution dimensions and set video capture to it.
+def get_dims(cap, res='1080p'):
+    width, height = STD_DIMENSIONS["480p"]
+    if res in STD_DIMENSIONS:
+        width,height = STD_DIMENSIONS[res]
+    ## change the current caputre device
+    ## to the resulting resolution
+    #change_res(cap, width, height)
+    return width, height
+    
+def get_video_type(filename):
+    filename, ext = os.path.splitext(filename)
+    if ext in VIDEO_TYPE:
+      return  VIDEO_TYPE[ext]
+    return VIDEO_TYPE['avi']
+
+res = '720p'
+
+# Video Encoding, might require additional installs
+# Types of Codes: http://www.fourcc.org/codecs.php
+VIDEO_TYPE = {
+    'avi': cv2.VideoWriter_fourcc(*'XVID'),
+    #'mp4': cv2.VideoWriter_fourcc(*'H264'),
+    'mp4': cv2.VideoWriter_fourcc(*'XVID'),
+}
+
+# Standard Video Dimensions Sizes
+STD_DIMENSIONS =  {
+    "480p": (640, 480),
+    "720p": (1280, 720),
+    "1080p": (1920, 1080),
+    "4k": (3840, 2160),
+}
+
 app = Flask(__name__, static_url_path='/home/pi/Server/PIRCamera')
 @app.route("/")
 def home():
@@ -328,93 +368,85 @@ class PIRCamera:
         nextRecordTime = 0.0
         occupiedTimeout = 0.0
         imageCount = 0
+        record_time = 0
         # initialize the first frame in the video stream
         firstFrame = None
         occupied = False
+        recording = False
+        out = None #cv2.VideoWriter(filename, get_video_type(filename), 25, get_dims(cap, res))
         # loop over the frames of the video
         while True:
             # grab the current frame and initialize the occupied/unoccupied
             # text
+            timeNow = time.time()
+            now = datetime.now() # current date and time
             frame = vs.read()
-            frame = frame
+            #frame = frame
             text = "Unoccupied"
-     
             # if the frame could not be grabbed, then we have reached the end
             # of the video
             if frame is None:
                 break
-     
-            # resize the frame, convert it to grayscale, and blur it
-            frame = imutils.resize(frame, width=500)
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            gray = cv2.GaussianBlur(gray, (21, 21), 0)
-     
-            # if the first frame is None, initialize it
-            if firstFrame is None:
-                firstFrame = gray
-                continue
-            
-            # compute the absolute difference between the current frame and
-            # first frame
-            frameDelta = cv2.absdiff(firstFrame, gray)
-            thresh = cv2.threshold(frameDelta, move_threshold, 255, cv2.THRESH_BINARY)[1]
-     
-            # dilate the thresholded image to fill in holes, then find contours
-            # on thresholded image
-            thresh = cv2.dilate(thresh, None, iterations=2)
-            cnts = cv2.findContours(thresh.copy(), cv2.RETR_TREE,
-                cv2.CHAIN_APPROX_SIMPLE)
                 
-            cnts = cnts[1] #if imutils.is_cv2() else cnts[1]
-            #print(cnts)
-            #if cnts != None:
-            # loop over the contours
-            for c in cnts:
-                # if the contour is too small, ignore it
-                #if cv2.contourArea(c) < args["min_area"]:
-                #	continue
-                #print(cv2.contourArea(c))
-                contour_area = cv2.contourArea(c)
-                #for x in range(0, len(c)):
-                #    contour_number += c[x]
-                #try:
-                #    val1 = cv2.contourArea(c)
-                #    print("No exception")
-                #except:
-                #    pass
- 
-                # compute the bounding box for the contour, draw it on the frame,
-                # and update the text
-                if (contour_area > 300):
-                    #print("Greater than zero")
-                    (x, y, w, h) = cv2.boundingRect(c)
-                    cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                    text = "Occupied"
-                    if (occupied == False):
-                        print("Motion detect!")
-                    occupied = True
-                    timeNow = time.time()
+            if recording and record_time > timeNow:
+                out.write(frame)
+            else:
+                if recording and out != None:
+                    out.release()
+                    out = None
+                    occupied = False
+                    firstFrame = None
+                    print("Video finished...")
+     
+                # resize the frame, convert it to grayscale, and blur it
+                frame = imutils.resize(frame, width=500)
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                gray = cv2.GaussianBlur(gray, (21, 21), 0)
+         
+                # if the first frame is None, initialize it
+                if firstFrame is None:
+                    firstFrame = gray
+                    continue
+            
+                # compute the absolute difference between the current frame and
+                # first frame
+                frameDelta = cv2.absdiff(firstFrame, gray)
+                thresh = cv2.threshold(frameDelta, move_threshold, 255, cv2.THRESH_BINARY)[1]
+         
+                # dilate the thresholded image to fill in holes, then find contours
+                # on thresholded image
+                thresh = cv2.dilate(thresh, None, iterations=2)
+                cnts = cv2.findContours(thresh.copy(), cv2.RETR_TREE,
+                    cv2.CHAIN_APPROX_SIMPLE)
+                
+                cnts = cnts[1]
+                for c in cnts:
+                    contour_area = cv2.contourArea(c)
+                    if (contour_area > 300):
+                        #print("Greater than zero")
+                        (x, y, w, h) = cv2.boundingRect(c)
+                        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                        text = "Occupied"
+                        #if (occupied == False):
+                        #    print("Motion detect!")
+                        #occupied = True
+                        if not recording:
+                            recording = True
+                            file_stamp = now.strftime("%m_%d_%Y_%H_%M_%S_sec.h264")
+                            filename = now.strftime("/home/pi/Videos/" + file_stamp)
+                            out = cv2.VideoWriter(filename, cv2.VideoWriter_fourcc(*'H264'), 25, (1280, 720))
+                            print("Recording video: " + filename)
+                            record_time = timeNow + 10.0
             
                 # draw the text and timestamp on the frame
-            cv2.putText(frame, "Room Status: {}".format(text), (10, 20),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-            #cv2.putText(frame, datetime.datetime.now().strftime("%A %d %B %Y %I:%M:%S%p"),
-            #    (10, frame.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
-            #if (show_images == True):
-                # show the frame and record if the user presses a key
-            #    cv2.imshow("Security Feed", frame)
-            #    cv2.imshow("Thresh", thresh)
-            #    cv2.imshow("Frame Delta", frameDelta)
-            timeNow = time.time()
-            # Save frames of the intruder every so often and store them to the hard drive
-            if (nextRecordTime < timeNow):
-                nextRecordTime = timeNow + 1.0
+                #cv2.putText(frame, "Room Status: {}".format(text), (10, 20),
+                #    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
             # Reset occupied every few seconds
-            if (occupiedTimeout < timeNow):
-                occupied = False
-                firstFrame = None
-                occupiedTimeout = timeNow + 10.0
+            #if (occupiedTimeout < timeNow):
+            #    occupied = False
+            #    firstFrame = None
+            #    occupiedTimeout = timeNow + 10.0
 
             key = cv2.waitKey(1) & 0xFF
      
