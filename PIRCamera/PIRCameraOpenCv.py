@@ -383,6 +383,7 @@ class PIRCamera:
             frame = vs.read()
             #frame = frame
             text = "Unoccupied"
+            motion_detected = False
             # if the frame could not be grabbed, then we have reached the end
             # of the video
             if frame is None:
@@ -431,12 +432,13 @@ class PIRCamera:
                         #    print("Motion detect!")
                         #occupied = True
                         if not recording:
-                            recording = True
-                            file_stamp = now.strftime("%m_%d_%Y_%H_%M_%S_sec.h264")
-                            filename = now.strftime("/home/pi/Videos/" + file_stamp)
-                            out = cv2.VideoWriter(filename, cv2.VideoWriter_fourcc(*'H264'), 25, (1280, 720))
-                            print("Recording video: " + filename)
-                            record_time = timeNow + 10.0
+                            motion_detected = True
+                            #recording = True
+                            #file_stamp = now.strftime("%m_%d_%Y_%H_%M_%S_sec.avi")
+                            #filename = now.strftime("/home/pi/Videos/" + file_stamp)
+                            #out = cv2.VideoWriter(filename, cv2.VideoWriter_fourcc(*'MJPG'), 25, (640, 480))
+                            #print("Recording video: " + filename)
+                            #record_time = timeNow + 10.0
             
                 # draw the text and timestamp on the frame
                 #cv2.putText(frame, "Room Status: {}".format(text), (10, 20),
@@ -447,7 +449,25 @@ class PIRCamera:
             #    occupied = False
             #    firstFrame = None
             #    occupiedTimeout = timeNow + 10.0
-
+            if motion_detected:
+                vs.stream.release()
+                #vs.stop() # Stop the stream
+                time.sleep(2.0)
+                now = datetime.now() # current date and time
+                print("Recording video...")
+                file_stamp = now.strftime("%m_%d_%Y_%H_%M_%S_sec")
+                file_name = now.strftime("/home/pi/Videos/" + file_stamp)
+                self.command = "raspivid -vf -t " + str(self.record_time) + " -w " + str(self.width) + " -h " + str(self.height) + " -fps " + str(self.fps) + " -b 1200000 -p 0,0," + str(self.width) + "," + str(self.height)
+                command = self.command + " -o " + file_name + ".h264"
+                os.system(command)
+                os.system("MP4Box -add " + file_name + ".h264 " + file_name + ".mp4")
+                os.system("rm " + file_name + ".h264")
+                print("Restart stream...")
+                # Restart the stream
+                vs = VideoStream(src=0).start()
+                time.sleep(2.0)
+                
+                
             key = cv2.waitKey(1) & 0xFF
      
             # if the `q` key is pressed, break from the lop
