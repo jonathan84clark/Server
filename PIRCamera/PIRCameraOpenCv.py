@@ -187,33 +187,39 @@ class PIRCamera:
         self.motionThread.start()
  
     def SetupAWS(self):
-        self.client = AWSIoTMQTTShadowClient("PIRCamera")
-        self.client.configureEndpoint("a2yizg9mkkd9ph-ats.iot.us-west-2.amazonaws.com", 8883)
-        self.client.configureCredentials(PATH_TO_ROOT, PATH_TO_KEY, PATH_TO_CERT)
-        self.client.configureConnectDisconnectTimeout(10)  # 10 sec
-        self.client.configureMQTTOperationTimeout(5)  # 5 sec
-        self.client.connect()
-        self.shadow_connect = self.client.createShadowHandlerWithName("SecurityCamera", True)
-        
-        # Setup the MQTT endpoint
-        # Spin up resources
-        event_loop_group = io.EventLoopGroup(1)
-        host_resolver = io.DefaultHostResolver(event_loop_group)
-        client_bootstrap = io.ClientBootstrap(event_loop_group, host_resolver)
-        self.mqtt_connection = mqtt_connection_builder.mtls_from_path(
-            endpoint=ENDPOINT,
-            cert_filepath=PATH_TO_CERT,
-            pri_key_filepath=PATH_TO_KEY,
-            client_bootstrap=client_bootstrap,
-            ca_filepath=PATH_TO_ROOT,
-            client_id=CLIENT_ID,
-            clean_session=False,
-            keep_alive_secs=6
-        )
-        connect_future = self.mqtt_connection.connect()
-        # Future.result() waits until a result is available
-        connect_future.result()
-        self.mqtt_connection.subscribe(topic=TOPIC, qos=mqtt.QoS.AT_LEAST_ONCE, callback=self.subcallback)
+        try:
+            self.client = AWSIoTMQTTShadowClient("PIRCamera")
+            self.client.configureEndpoint("a2yizg9mkkd9ph-ats.iot.us-west-2.amazonaws.com", 8883)
+            self.client.configureCredentials(PATH_TO_ROOT, PATH_TO_KEY, PATH_TO_CERT)
+            self.client.configureConnectDisconnectTimeout(10)  # 10 sec
+            self.client.configureMQTTOperationTimeout(5)  # 5 sec
+            self.client.connect()
+            self.shadow_connect = self.client.createShadowHandlerWithName("SecurityCamera", True)
+            
+            # Setup the MQTT endpoint
+            # Spin up resources
+            event_loop_group = io.EventLoopGroup(1)
+            host_resolver = io.DefaultHostResolver(event_loop_group)
+            client_bootstrap = io.ClientBootstrap(event_loop_group, host_resolver)
+            self.mqtt_connection = mqtt_connection_builder.mtls_from_path(
+                endpoint=ENDPOINT,
+                cert_filepath=PATH_TO_CERT,
+                pri_key_filepath=PATH_TO_KEY,
+                client_bootstrap=client_bootstrap,
+                ca_filepath=PATH_TO_ROOT,
+                client_id=CLIENT_ID,
+                clean_session=False,
+                keep_alive_secs=6
+            )
+            connect_future = self.mqtt_connection.connect()
+            # Future.result() waits until a result is available
+            connect_future.result()
+            self.mqtt_connection.subscribe(topic=TOPIC, qos=mqtt.QoS.AT_LEAST_ONCE, callback=self.subcallback)
+        except:
+            print("AWS failed to setup, retrying...")
+            time.sleep(1)
+            self.SetupAWS()
+            
     
     # Sets up the Google drive API for remote transfers
     def SetupGoogleDrive(self):
@@ -247,14 +253,17 @@ class PIRCamera:
     # Generates a shadow for AWS
     def SendShadow(self):
         global shadow
-        dictionary = {"detections" : self.detections, "recording" : self.video_recording,
-                      "width"      : self.width,      "height" : self.height,
-                      "record_time" : self.record_time, "fps" : self.fps,
-                      "upload_video" : self.upload_video, "use_light" : self.use_light,
-                      "enabled" : self.enabled, "videos_this_session" : self.videos_recorded_from_start}
+        try:
+            dictionary = {"detections" : self.detections, "recording" : self.video_recording,
+                          "width"      : self.width,      "height" : self.height,
+                          "record_time" : self.record_time, "fps" : self.fps,
+                          "upload_video" : self.upload_video, "use_light" : self.use_light,
+                          "enabled" : self.enabled, "videos_this_session" : self.videos_recorded_from_start}
                       
-        shadow["state"]["desired"] = dictionary
-        self.shadow_connect.shadowUpdate(json.dumps(shadow), self.ShadowCallback, 5)
+            shadow["state"]["desired"] = dictionary
+            self.shadow_connect.shadowUpdate(json.dumps(shadow), self.ShadowCallback, 5)
+        except:
+            print("Error: Failed to send shadow")
  
     # Subscriber callback
     def subcallback(self, topic, payload, **kwargs):
@@ -284,7 +293,7 @@ class PIRCamera:
         
     # Handles recieving the shadow callback
     def ShadowCallback(self, data, param2, param3):
-        print(data)
+        print("AWS Shadow updated")
         
     # Loads settings from a file
     def LoadSettings(self):
@@ -360,20 +369,12 @@ class PIRCamera:
         self.video_recording = False
         
     def motion_detect(self):
-        imageFiles = []
-
+        #imageFiles = []
         vs = VideoStream(src=0).start()
         time.sleep(2.0)
-
-        nextRecordTime = 0.0
-        occupiedTimeout = 0.0
-        imageCount = 0
-        record_time = 0
         # initialize the first frame in the video stream
         firstFrame = None
-        occupied = False
-        recording = False
-        out = None #cv2.VideoWriter(filename, get_video_type(filename), 25, get_dims(cap, res))
+        out = None
         # loop over the frames of the video
         while True:
             # grab the current frame and initialize the occupied/unoccupied
@@ -381,92 +382,53 @@ class PIRCamera:
             timeNow = time.time()
             now = datetime.now() # current date and time
             frame = vs.read()
-            #frame = frame
-            text = "Unoccupied"
             motion_detected = False
             # if the frame could not be grabbed, then we have reached the end
             # of the video
             if frame is None:
                 break
                 
-            if recording and record_time > timeNow:
-                out.write(frame)
-            else:
-                if recording and out != None:
-                    out.release()
-                    out = None
-                    occupied = False
-                    firstFrame = None
-                    print("Video finished...")
+            # resize the frame, convert it to grayscale, and blur it
+            frame = imutils.resize(frame, width=500)
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            gray = cv2.GaussianBlur(gray, (21, 21), 0)
      
-                # resize the frame, convert it to grayscale, and blur it
-                frame = imutils.resize(frame, width=500)
-                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                gray = cv2.GaussianBlur(gray, (21, 21), 0)
-         
-                # if the first frame is None, initialize it
-                if firstFrame is None:
-                    firstFrame = gray
-                    continue
+            # if the first frame is None, initialize it
+            if firstFrame is None:
+                firstFrame = gray
+                continue
+        
+            # compute the absolute difference between the current frame and
+            # first frame
+            frameDelta = cv2.absdiff(firstFrame, gray)
+            thresh = cv2.threshold(frameDelta, move_threshold, 255, cv2.THRESH_BINARY)[1]
+     
+            # dilate the thresholded image to fill in holes, then find contours
+            # on thresholded image
+            thresh = cv2.dilate(thresh, None, iterations=2)
+            cnts = cv2.findContours(thresh.copy(), cv2.RETR_TREE,
+                cv2.CHAIN_APPROX_SIMPLE)
             
-                # compute the absolute difference between the current frame and
-                # first frame
-                frameDelta = cv2.absdiff(firstFrame, gray)
-                thresh = cv2.threshold(frameDelta, move_threshold, 255, cv2.THRESH_BINARY)[1]
-         
-                # dilate the thresholded image to fill in holes, then find contours
-                # on thresholded image
-                thresh = cv2.dilate(thresh, None, iterations=2)
-                cnts = cv2.findContours(thresh.copy(), cv2.RETR_TREE,
-                    cv2.CHAIN_APPROX_SIMPLE)
-                
-                cnts = cnts[1]
-                for c in cnts:
-                    contour_area = cv2.contourArea(c)
-                    if (contour_area > 300):
-                        #print("Greater than zero")
-                        (x, y, w, h) = cv2.boundingRect(c)
-                        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                        text = "Occupied"
-                        #if (occupied == False):
-                        #    print("Motion detect!")
-                        #occupied = True
-                        if not recording:
-                            motion_detected = True
-                            #recording = True
-                            #file_stamp = now.strftime("%m_%d_%Y_%H_%M_%S_sec.avi")
-                            #filename = now.strftime("/home/pi/Videos/" + file_stamp)
-                            #out = cv2.VideoWriter(filename, cv2.VideoWriter_fourcc(*'MJPG'), 25, (640, 480))
-                            #print("Recording video: " + filename)
-                            #record_time = timeNow + 10.0
-            
-                # draw the text and timestamp on the frame
-                #cv2.putText(frame, "Room Status: {}".format(text), (10, 20),
-                #    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+            cnts = cnts[1]
+            for c in cnts:
+                contour_area = cv2.contourArea(c)
+                if (contour_area > 300):
+                    #(x, y, w, h) = cv2.boundingRect(c)
+                    #cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                    #if not recording:
+                    motion_detected = True
 
-            # Reset occupied every few seconds
-            #if (occupiedTimeout < timeNow):
-            #    occupied = False
-            #    firstFrame = None
-            #    occupiedTimeout = timeNow + 10.0
             if motion_detected:
+                print("Motion detected")
+                vs.stop()
+                time.sleep(0.2)
                 vs.stream.release()
-                #vs.stop() # Stop the stream
-                time.sleep(2.0)
-                now = datetime.now() # current date and time
-                print("Recording video...")
-                file_stamp = now.strftime("%m_%d_%Y_%H_%M_%S_sec")
-                file_name = now.strftime("/home/pi/Videos/" + file_stamp)
-                self.command = "raspivid -vf -t " + str(self.record_time) + " -w " + str(self.width) + " -h " + str(self.height) + " -fps " + str(self.fps) + " -b 1200000 -p 0,0," + str(self.width) + "," + str(self.height)
-                command = self.command + " -o " + file_name + ".h264"
-                os.system(command)
-                os.system("MP4Box -add " + file_name + ".h264 " + file_name + ".mp4")
-                os.system("rm " + file_name + ".h264")
-                print("Restart stream...")
-                # Restart the stream
+                time.sleep(0.2)
+                self.RecordVideo()
+                print("Resume motion detect...")
                 vs = VideoStream(src=0).start()
-                time.sleep(2.0)
-                
+                time.sleep(0.2)
+                firstFrame = None
                 
             key = cv2.waitKey(1) & 0xFF
      
@@ -500,7 +462,7 @@ def StartFlask():
 if __name__ == '__main__':
     pir = PIRCamera()
     
-    #StartFlask()
+    StartFlask()
 
     
     while (True):
