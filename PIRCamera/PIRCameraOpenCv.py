@@ -61,7 +61,7 @@ PATH_TO_ROOT = "/home/pi/.security/AmazonRootCA1.pem"
 ENDPOINT = "a2yizg9mkkd9ph-ats.iot.us-west-2.amazonaws.com"
 TOPIC = "camera/control"
 CLIENT_ID = "PIRCamera_MQTT"
-DB_FILE = "stats.db"
+DB_FILE = "/home/pi/stats.db"
 RANGE = 20
 move_threshold = 50
 
