@@ -36,6 +36,9 @@ import time
 from threading import Thread
 from time import sleep
 from datetime import datetime
+import subprocess
+import sqlite3
+from sqlite3 import Error
 from os import path
 import json
 import os
@@ -58,6 +61,7 @@ PATH_TO_ROOT = "/home/pi/.security/AmazonRootCA1.pem"
 ENDPOINT = "a2yizg9mkkd9ph-ats.iot.us-west-2.amazonaws.com"
 TOPIC = "camera/control"
 CLIENT_ID = "PIRCamera_MQTT"
+DB_FILE = "stats.db"
 RANGE = 20
 move_threshold = 50
 
@@ -177,14 +181,67 @@ class PIRCamera:
         self.upload_video = False
         self.use_light = True
         self.enabled = False
+        self.system_temp = 0.0
         self.LoadSettings()
         self.SetupGoogleDrive()
         self.command = "raspivid -vf -t " + str(self.record_time) + " -w " + str(self.width) + " -h " + str(self.height) + " -fps " + str(self.fps) + " -b 1200000 -p 0,0," + str(self.width) + "," + str(self.height)# + " -o " + file_name + ".h264"
         self.SetupAWS()
-        self.SendShadow()
         self.motionThread = Thread(target = self.motion_detect)
         self.motionThread.daemon = True
         self.motionThread.start()
+        self.update_thread = Thread(target = self.RegularUpdate)
+        self.update_thread.daemon = True
+        self.update_thread.start()
+        
+    # Thread to regularly get temperature
+    def RegularUpdate(self):
+        while (True):
+            out = subprocess.Popen(['vcgencmd', 'measure_temp'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            stdout,stderr = out.communicate()
+            system_temp = None
+            system_temp_str = stdout.decode('utf-8').replace("'C\n", "").split('=')
+            self.system_temp = float(system_temp_str[1])
+            self.SendShadow()
+            self.write_db()
+            time.sleep(400.0)
+            
+    # Validates that there is data in the sqllite database file
+    def test_db(self):
+        conn = sqlite3.connect(DB_FILE)
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM environment")
+        
+        rows = cur.fetchall()
+        
+        for row in rows:
+            print(row)
+        cur.close()
+        
+    # Writes the current data to the sql database      
+    def write_db(self):
+        conn = None
+        timestamp = time.time()
+        try:
+            conn = sqlite3.connect(DB_FILE)
+            
+            sql_create_table = """ CREATE TABLE IF NOT EXISTS camera (
+                                        time_stamp text,
+                                        system_temp float,
+                                        videos integer
+                                    ); """
+                                    
+            insert = ''' INSERT INTO camera(time_stamp,system_temp,videos)
+                         VALUES(?,?,?) '''
+            c = conn.cursor()
+            c.execute(sql_create_table)
+            conn.commit()
+            data = (timestamp, self.system_temp, self.videos_recorded_from_start)
+            c.execute(insert, data)
+            conn.commit()
+            c.close()
+            print("Saved temperature to database...")
+        except Error as ex:
+            print("Unable to write to database: " + str(ex))
  
     def SetupAWS(self):
         try:
@@ -258,7 +315,8 @@ class PIRCamera:
                           "width"      : self.width,      "height" : self.height,
                           "record_time" : self.record_time, "fps" : self.fps,
                           "upload_video" : self.upload_video, "use_light" : self.use_light,
-                          "enabled" : self.enabled, "videos_this_session" : self.videos_recorded_from_start}
+                          "enabled" : self.enabled, "videos_this_session" : self.videos_recorded_from_start,
+                          "system_temp" : self.system_temp}
                       
             shadow["state"]["desired"] = dictionary
             self.shadow_connect.shadowUpdate(json.dumps(shadow), self.ShadowCallback, 5)
@@ -325,7 +383,7 @@ class PIRCamera:
                       "width"      : self.width,      "height" : self.height,
                       "record_time" : self.record_time, "fps" : self.fps,
                       "upload_video" : self.upload_video, "use_light" : self.use_light,
-                      "enabled" : self.enabled}
+                      "enabled" : self.enabled, "system_temp" : self.system_temp}
         jsonStr = json.dumps(dictionary)
 
         return jsonStr
@@ -372,6 +430,7 @@ class PIRCamera:
         #imageFiles = []
         vs = VideoStream(src=0).start()
         time.sleep(2.0)
+        frame_cnt = 0
         # initialize the first frame in the video stream
         firstFrame = None
         out = None
@@ -379,8 +438,8 @@ class PIRCamera:
         while True:
             # grab the current frame and initialize the occupied/unoccupied
             # text
-            timeNow = time.time()
-            now = datetime.now() # current date and time
+            #timeNow = time.time()
+            #now = datetime.now() # current date and time
             frame = vs.read()
             motion_detected = False
             # if the frame could not be grabbed, then we have reached the end
@@ -412,14 +471,12 @@ class PIRCamera:
             cnts = cnts[1]
             for c in cnts:
                 contour_area = cv2.contourArea(c)
-                if (contour_area > 300):
-                    #(x, y, w, h) = cv2.boundingRect(c)
-                    #cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                    #if not recording:
+                if (contour_area > 500):
                     motion_detected = True
 
-            if motion_detected:
+            if motion_detected and self.enabled:
                 print("Motion detected")
+                self.videos_recorded_from_start += 1
                 vs.stop()
                 time.sleep(0.2)
                 vs.stream.release()
@@ -435,6 +492,8 @@ class PIRCamera:
             # if the `q` key is pressed, break from the lop
             if key == ord("q"):
                 break
+                
+            time.sleep(0.1)
      
         # cleanup the camera and close any open windows
         vs.stop()
